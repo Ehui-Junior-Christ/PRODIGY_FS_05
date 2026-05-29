@@ -874,61 +874,6 @@ body {
     }
 }
 
-/* ── Edit Profile Modal — Cover & Avatar ── */
-#edit-cover-preview:hover {
-    opacity: 0.85;
-}
 
-#edit-cover-preview .camera-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.2s var(--smooth-ease);
-    border-radius: 12px;
-}
-
-#edit-cover-preview:hover .camera-overlay {
-    opacity: 1;
-}
-
-.avatar-hover-overlay {
-    transition: opacity 0.2s var(--smooth-ease) !important;
-}
-
-/* ── Modal scrollable body ── */
-.modal-body {
-    overflow-y: auto;
-    max-height: 70vh;
-}
-
-/* ── Profile bio text ── */
-#profile-bio {
-    white-space: pre-wrap;
-    line-height: 1.5;
-}
-
-/* ── Topbar icon buttons ── */
-.topbar-icon-btn {
-    background: var(--panel-bg);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background var(--transition-fast), transform var(--transition-fast);
-}
-.topbar-icon-btn:hover {
-    background: var(--hover-bg);
-    transform: scale(1.08);
-}
 
 

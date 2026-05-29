@@ -97,7 +97,7 @@ router.post("/login", async (req, res) => {
     if (!valid) return res.status(400).json({ error: "Mot de passe incorrect" });
 
     const token = jwt.sign({ id: user.id, handle: user.handle, name: user.name }, JWT_SECRET);
-    res.json({ token, user: { id: user.id, name: user.name, handle: user.handle } });
+    res.json({ token, user: { id: user.id, name: user.name, handle: user.handle, avatar_url: user.avatar_url, cover_url: user.cover_url } });
   } catch (error) {
     res.status(500).json({ error: "Erreur de connexion" });
   }

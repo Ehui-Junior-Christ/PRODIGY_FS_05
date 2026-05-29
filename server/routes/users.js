@@ -28,7 +28,7 @@ const requireAuth = (req, res, next) => {
 router.get("/me", requireAuth, async (req, res) => {
   try {
     const result = await client.execute({
-      sql: `SELECT u.id, u.name, u.handle, u.email, u.bio, u.avatar_url, u.cover_url, u.created_at,
+      sql: `SELECT u.id, u.name, u.handle, u.email, u.avatar_url, u.cover_url, u.created_at,
              (SELECT COUNT(*) FROM angles WHERE author_id = u.id) as angles_count,
              (SELECT COUNT(*) FROM follows WHERE following_id = u.id) as followers_count,
              (SELECT COUNT(*) FROM follows WHERE follower_id = u.id) as following_count
@@ -45,7 +45,7 @@ router.get("/me", requireAuth, async (req, res) => {
 // PUT /api/users/me — modifier le profil de l'utilisateur connecté
 router.put("/me", requireAuth, async (req, res) => {
   try {
-    const { name, handle, bio, avatar_url, cover_url } = req.body;
+    const { name, handle, avatar_url, cover_url } = req.body;
     if (!name || !handle) return res.status(400).json({ error: "Nom et handle requis" });
 
     // Vérifier si le handle est déjà pris par qqn d'autre
@@ -56,12 +56,13 @@ router.put("/me", requireAuth, async (req, res) => {
     if (check.rows.length > 0) return res.status(409).json({ error: "Ce handle est déjà utilisé" });
 
     await client.execute({
-      sql: "UPDATE users SET name = ?, handle = ?, bio = ?, avatar_url = ?, cover_url = ? WHERE id = ?",
-      args: [name, handle, bio || '', avatar_url || '', cover_url || '', req.user.id]
+      sql: "UPDATE users SET name = ?, handle = ?, avatar_url = ?, cover_url = ? WHERE id = ?",
+      args: [name, handle, avatar_url || null, cover_url || null, req.user.id]
     });
     
+    // Renvoyer le nouveau token (facultatif si le front se base sur les requêtes, mais utile pour la consistance)
     const newToken = jwt.sign({ id: req.user.id, handle, name }, JWT_SECRET);
-    res.json({ message: "Profil mis à jour", token: newToken, user: { name, handle, bio: bio || '', avatar_url: avatar_url || '', cover_url: cover_url || '' } });
+    res.json({ message: "Profil mis à jour", token: newToken, user: { name, handle, avatar_url, cover_url } });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Erreur serveur" });
@@ -72,7 +73,7 @@ router.put("/me", requireAuth, async (req, res) => {
 router.get("/:handle", optionalAuth, async (req, res) => {
   try {
     const result = await client.execute({
-      sql: `SELECT u.id, u.name, u.handle, u.bio, u.avatar_url, u.cover_url, u.created_at,
+      sql: `SELECT u.id, u.name, u.handle, u.avatar_url, u.cover_url, u.created_at,
              (SELECT COUNT(*) FROM angles WHERE author_id = u.id) as angles_count,
              (SELECT COUNT(*) FROM follows WHERE following_id = u.id) as followers_count,
              (SELECT COUNT(*) FROM follows WHERE follower_id = u.id) as following_count
