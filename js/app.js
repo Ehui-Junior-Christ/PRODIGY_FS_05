@@ -439,21 +439,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentView = 'home';
 
     function navigateTo(viewName) {
-        if (!views[viewName]) return;
-        if (views[currentView]?.el) views[currentView].el.style.display = 'none';
-
-        const displayMode = viewName === 'messages' ? 'flex' : 'block';
-        views[viewName].el.style.display = displayMode;
-        topbarTitle.textContent = views[viewName].title;
-        currentView = viewName;
-
-        document.querySelectorAll('.nav-links li').forEach(li => {
-            li.classList.toggle('active', li.dataset.view === viewName);
-        });
-
-        if (viewName === 'trending')      fetchAndRenderTrending();
-        if (viewName === 'notifications') fetchAndRenderNotifications();
-        if (viewName === 'profile')       fetchAndRenderProfile();
+        if (viewName === 'home') window.location.href = 'index.html';
+        else window.location.href = `${viewName}.html`;
     }
 
     document.querySelectorAll('.nav-links li').forEach(li => {
@@ -462,6 +449,36 @@ document.addEventListener('DOMContentLoaded', () => {
             if (target) navigateTo(target);
         });
     });
+
+    // Detect current view based on filename
+    const filename = window.location.pathname.split('/').pop() || 'index.html';
+    const currentViewName = filename === 'index.html' ? 'home' : filename.replace('.html', '');
+    currentView = currentViewName;
+
+    function initCurrentView() {
+        if (!views[currentViewName] || !views[currentViewName].el) return;
+
+        // Hide all views first
+        Object.values(views).forEach(v => {
+            if(v.el) v.el.style.display = 'none';
+        });
+
+        // Show current view
+        const displayMode = currentViewName === 'messages' ? 'flex' : 'block';
+        views[currentViewName].el.style.display = displayMode;
+        if(topbarTitle) topbarTitle.textContent = views[currentViewName].title;
+
+        // Update active nav link
+        document.querySelectorAll('.nav-links li').forEach(li => {
+            li.classList.toggle('active', li.dataset.view === currentViewName);
+        });
+
+        // Trigger fetch functions based on view
+        if (currentViewName === 'trending')      fetchAndRenderTrending();
+        if (currentViewName === 'notifications') fetchAndRenderNotifications();
+        if (currentViewName === 'profile')       fetchAndRenderProfile();
+        if (currentViewName === 'messages')      initMessages();
+    }
 
     // ── Tendances (depuis la BDD) ──────────────────────────────────────
     async function fetchAndRenderTrending() {
@@ -660,8 +677,188 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial render
     updateAuthUI();
-    fetchPosts();
-    fetchSidebar();
+    initCurrentView();
+    if (currentView === 'home') {
+        fetchPosts();
+    }
+    fetchSidebar(); // Sidebar is visible on all pages (trending & suggestions)
+
+    async function initMessages() {
+        const container = document.getElementById('view-messages');
+        if (!container) return;
+        
+        if (!state.token || !state.user) {
+            container.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:48px;">Connectez-vous pour voir vos messages.</p>';
+            return;
+        }
+
+        // Initialize UI with sidebar and chat area
+        container.innerHTML = `
+            <div style="display:flex; height:calc(100vh - 73px); width:100%;">
+                <div style="width:280px; border-right:1px solid var(--border-color); display:flex; flex-direction:column; flex-shrink:0;">
+                    <div style="padding:16px; border-bottom:1px solid var(--border-color);">
+                        <h2 style="font-size:18px; margin-bottom:12px;">Messages</h2>
+                        <div class="search-bar" style="width:100%;"><i class="ph ph-magnifying-glass"></i><input type="text" id="chat-search" placeholder="Nouveau message à @handle..." style="width:100%;"></div>
+                    </div>
+                    <div id="conv-list" style="overflow-y:auto; flex:1;">
+                        <p style="color:var(--text-secondary); padding:16px; text-align:center;">Chargement...</p>
+                    </div>
+                </div>
+                <div id="chat-area" style="flex:1; display:flex; flex-direction:column; background:var(--bg-color);">
+                    <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-secondary);">
+                        Sélectionnez ou cherchez une conversation pour commencer
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const convList = document.getElementById('conv-list');
+        const chatArea = document.getElementById('chat-area');
+        const searchInput = document.getElementById('chat-search');
+
+        let activeReceiverHandle = null;
+        let socket = null;
+
+        // Connect Socket.io
+        if (typeof io !== 'undefined') {
+            socket = io('http://localhost:3000');
+            socket.on('connect', () => {
+                socket.emit('register', state.user.id);
+            });
+            
+            socket.on('new_message', (msg) => {
+                // If we are talking to the sender/receiver, append message
+                const isFromMe = msg.sender_id === state.user.id;
+                const otherHandle = isFromMe ? activeReceiverHandle : msg.sender_handle;
+                
+                if (activeReceiverHandle === otherHandle) {
+                    appendMessageToUI(msg, isFromMe);
+                    scrollToBottom();
+                }
+                loadConversations(); // refresh sidebar
+            });
+        }
+
+        async function loadConversations() {
+            try {
+                const res = await fetch(`${API_URL}/conversations`, {
+                    headers: { 'Authorization': `Bearer ${state.token}` }
+                });
+                const data = await res.json();
+                convList.innerHTML = '';
+                if (data.length === 0) {
+                    convList.innerHTML = '<p style="color:var(--text-secondary); padding:16px; text-align:center; font-size:14px;">Aucune conversation.</p>';
+                } else {
+                    data.forEach(u => {
+                        const div = document.createElement('div');
+                        div.className = `msg-conv ${u.handle === activeReceiverHandle ? 'active-conv' : ''}`;
+                        div.style.cssText = `display:flex;align-items:center;gap:12px;padding:16px;cursor:pointer;border-bottom:1px solid var(--border-color); ${u.handle === activeReceiverHandle ? 'background:var(--hover-bg);' : ''}`;
+                        div.innerHTML = `
+                            <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=${u.handle}');flex-shrink:0;"></div>
+                            <div style="overflow:hidden;">
+                                <p style="font-weight:600;">${u.name}</p>
+                                <p style="font-size:13px;color:var(--text-secondary);">@${u.handle}</p>
+                            </div>
+                        `;
+                        div.onclick = () => openChat(u.handle, u.name);
+                        convList.appendChild(div);
+                    });
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function openChat(handle, name) {
+            activeReceiverHandle = handle;
+            loadConversations(); // refresh active state
+            
+            chatArea.innerHTML = `
+                <div style="padding:16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:12px; backdrop-filter:blur(10px);">
+                    <div class="avatar" style="width:40px;height:40px;background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=${handle}');background-size:cover;border-radius:50%;"></div>
+                    <div>
+                        <p style="font-weight:600;">${name || handle}</p>
+                        <p style="font-size:12px; color:var(--text-secondary);">@${handle}</p>
+                    </div>
+                </div>
+                <div id="chat-messages" style="flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;">
+                    <div style="text-align:center; color:var(--text-secondary);">Chargement...</div>
+                </div>
+                <div style="padding:16px;border-top:1px solid var(--border-color);display:flex;gap:12px;align-items:center;">
+                    <input type="text" id="chat-input" placeholder="Écrire un message..." class="input-field" style="flex:1;">
+                    <button id="chat-send" class="btn-primary" style="padding:10px 16px;"><i class="ph-fill ph-paper-plane-right"></i></button>
+                </div>
+            `;
+
+            document.getElementById('chat-send').onclick = sendMessage;
+            document.getElementById('chat-input').onkeypress = (e) => {
+                if (e.key === 'Enter') sendMessage();
+            };
+
+            // Fetch history
+            try {
+                const res = await fetch(`${API_URL}/messages/${handle}`, {
+                    headers: { 'Authorization': `Bearer ${state.token}` }
+                });
+                const messages = await res.json();
+                document.getElementById('chat-messages').innerHTML = '';
+                if(messages.length === 0) {
+                    document.getElementById('chat-messages').innerHTML = '<div style="text-align:center; color:var(--text-secondary); margin-top: auto; margin-bottom:auto;">Dites bonjour ! 👋</div>';
+                } else {
+                    messages.forEach(m => {
+                        appendMessageToUI(m, m.sender_id === state.user.id);
+                    });
+                }
+                scrollToBottom();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function appendMessageToUI(msg, isFromMe) {
+            const container = document.getElementById('chat-messages');
+            if(!container) return;
+            // Remove "Dites bonjour" if present
+            if(container.innerHTML.includes('Dites bonjour')) container.innerHTML = '';
+            
+            const div = document.createElement('div');
+            div.style.cssText = isFromMe 
+                ? 'align-self:flex-end;max-width:70%;background:var(--accent-color);color:#000;padding:12px 16px;border-radius:16px 16px 4px 16px;'
+                : 'align-self:flex-start;max-width:70%;background:var(--panel-bg);border:1px solid var(--border-color);padding:12px 16px;border-radius:16px 16px 16px 4px; color:var(--text-primary);';
+            div.innerHTML = `<p style="font-size:14px; margin:0;">${msg.content}</p>`;
+            container.appendChild(div);
+        }
+
+        function scrollToBottom() {
+            const container = document.getElementById('chat-messages');
+            if(container) container.scrollTop = container.scrollHeight;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const content = input.value.trim();
+            if (!content || !activeReceiverHandle || !socket) return;
+
+            socket.emit('send_message', {
+                senderId: state.user.id,
+                senderHandle: state.user.handle,
+                receiverHandle: activeReceiverHandle,
+                content: content
+            });
+
+            input.value = '';
+        }
+
+        // Search logic to start new chat
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const handle = searchInput.value.trim().replace('@', '');
+                if (handle) openChat(handle, handle);
+            }
+        });
+
+        loadConversations();
+    }
 });
 
 
