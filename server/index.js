@@ -66,6 +66,8 @@ app.get("/api/trending", async (req, res) => {
       LEFT JOIN angles a ON a.prisme_id = p.id
       WHERE lower(p.name) NOT LIKE '%selectionner%'
         AND lower(p.name) NOT LIKE '%sélectionner%'
+        AND lower(p.name) NOT LIKE '%sã©lectionner%'
+        AND lower(p.name) NOT LIKE '%prisme (sujet)%'
       GROUP BY p.id
       ORDER BY count DESC
       LIMIT 10
@@ -143,11 +145,27 @@ app.get("/api/suggestions", async (req, res) => {
 app.get("/api/message-suggestions", async (req, res) => {
   try {
     const user = getUserFromToken(getTokenFromRequest(req));
-    if (!user) return res.status(401).json({ error: "Non autorise" });
-
     const q = String(req.query.q || "").trim().toLowerCase();
     const searchSql = q ? "AND (lower(u.name) LIKE ? OR lower(u.handle) LIKE ?)" : "";
     const searchArgs = q ? [`%${q}%`, `%${q}%`] : [];
+
+    if (!user) {
+      const result = await client.execute({
+        sql: `
+          SELECT u.id, u.name, u.handle, u.avatar_url, u.bio,
+            (SELECT COUNT(*) FROM follows WHERE following_id = u.id) as followers_count,
+            0 as i_follow,
+            0 as follows_me,
+            0 as affinity_score
+          FROM users u
+          WHERE 1 = 1 ${searchSql}
+          ORDER BY followers_count DESC, u.created_at DESC
+          LIMIT 12
+        `,
+        args: searchArgs
+      });
+      return res.json(result.rows);
+    }
 
     const result = await client.execute({
       sql: `

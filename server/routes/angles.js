@@ -65,6 +65,7 @@ router.post("/", authenticateToken, async (req, res) => {
       .trim()
       .toLowerCase();
     const prismeName = cleanPrisme && !cleanPrisme.includes("selectionner") && !cleanPrisme.includes("sélectionner")
+      && !cleanPrisme.includes("sã©lectionner") && !cleanPrisme.includes("prisme (sujet)")
       ? cleanPrisme
       : "general";
     let prismeId = null;

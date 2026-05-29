@@ -1602,13 +1602,17 @@ document.addEventListener('DOMContentLoaded', () => {
         async function loadMessageSuggestions(query = '') {
             try {
                 convList.innerHTML = emptyState('ph ph-circle-notch', 'Recherche', 'On cherche les profils pertinents.');
-                const res = await fetch(`${API_URL}/message-suggestions?q=${encodeURIComponent(query)}`, {
-                    headers: { 'Authorization': `Bearer ${state.token}` }
-                });
+                const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
+                let res = await fetch(`${API_URL}/message-suggestions?q=${encodeURIComponent(query)}`, { headers });
+                if (!res.ok) {
+                    res = await fetch(`${API_URL}/users/search?q=${encodeURIComponent(query)}`, { headers });
+                }
+                if (!res.ok) throw new Error("Recherche utilisateur indisponible");
                 const users = await res.json();
                 renderPeopleSuggestions(users, query ? 'Resultats' : 'Suggestions avec affinite');
             } catch (error) {
-                convList.innerHTML = emptyState('ph ph-warning-circle', 'Recherche impossible', 'Reessayez dans un instant.');
+                console.error("Message search failed", error);
+                convList.innerHTML = emptyState('ph ph-warning-circle', 'Recherche impossible', 'Verifiez que le serveur backend est bien lance sur le bon port.');
             }
         }
 
