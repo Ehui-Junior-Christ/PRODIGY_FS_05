@@ -149,25 +149,30 @@ router.post("/login", async (req, res) => {
 
 router.post("/social", async (req, res) => {
   try {
-    const { provider, name, email, avatar_url } = req.body;
-    if (!email || !provider) return res.status(400).json({ error: "Compte social invalide." });
+    const { provider, uid, name, email, phoneNumber, avatar_url } = req.body;
+    if (!provider) return res.status(400).json({ error: "Compte social invalide." });
+
+    const accountEmail = email || (provider === "phone" && uid ? `phone_${uid}@auth.prisme.local` : null);
+    if (!accountEmail) return res.status(400).json({ error: "Compte social invalide." });
 
     const existing = await client.execute({
       sql: "SELECT * FROM users WHERE email = ?",
-      args: [email]
+      args: [accountEmail]
     });
 
     if (existing.rows.length > 0) {
       return res.json(makeSession(existing.rows[0]));
     }
 
-    const displayName = name || email.split("@")[0];
-    const handle = await uniqueHandle(`${provider}_${email.split("@")[0]}`);
-    const hashedPassword = await bcrypt.hash(`${provider}_${email}_${Date.now()}`, 10);
+    const phoneTail = phoneNumber ? phoneNumber.replace(/\D/g, "").slice(-6) : "";
+    const displayName = name || phoneNumber || accountEmail.split("@")[0];
+    const handleBase = provider === "phone" ? `phone_${phoneTail || uid?.slice(0, 6)}` : `${provider}_${accountEmail.split("@")[0]}`;
+    const handle = await uniqueHandle(handleBase);
+    const hashedPassword = await bcrypt.hash(`${provider}_${accountEmail}_${uid || Date.now()}`, 10);
 
     const created = await client.execute({
       sql: "INSERT INTO users (name, handle, email, password_hash, email_verified, avatar_url) VALUES (?, ?, ?, ?, 1, ?)",
-      args: [displayName, handle, email, hashedPassword, avatar_url || null]
+      args: [displayName, handle, accountEmail, hashedPassword, avatar_url || null]
     });
 
     const userRes = await client.execute({

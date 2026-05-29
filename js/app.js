@@ -26,7 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
         suggestions: [],
         user: JSON.parse(localStorage.getItem('prisme_user')) || null,
         token: localStorage.getItem('prisme_token') || null,
-        openComments: new Set()
+        openComments: new Set(),
+        searchQuery: ''
     };
 
     function escapeHtml(value) {
@@ -40,6 +41,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function avatarUrl(user) {
         return user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.handle || user?.author_handle || 'user')}`;
+    }
+
+    function emptyState(icon, title, body) {
+        return `
+            <div class="empty-state">
+                <div>
+                    <i class="${icon}"></i>
+                    <strong>${escapeHtml(title)}</strong>
+                    <p>${escapeHtml(body)}</p>
+                </div>
+            </div>
+        `;
     }
 
     function saveSession(data) {
@@ -56,6 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const feedContainer = document.getElementById('feed-container');
     const trendingList = document.getElementById('trending-list');
     const suggestionsList = document.getElementById('suggestions-list');
+    const searchInput = document.getElementById('search-input');
     
     // Auth Modal
     const authModal = document.getElementById('auth-modal');
@@ -140,6 +154,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if(btnLogout)       btnLogout.addEventListener('click', doLogout);
     if(btnLogoutMobile) btnLogoutMobile.addEventListener('click', doLogout);
 
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            state.searchQuery = searchInput.value;
+            if (currentView === 'home') renderPosts();
+        });
+    }
+
     // Fetch Data
     async function fetchPosts() {
         try {
@@ -170,12 +191,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Render Functions
     function renderPosts() {
+        if (!feedContainer) return;
+
+        const query = state.searchQuery.trim().toLowerCase();
+        const visiblePosts = query
+            ? state.posts.filter(post => [
+                post.author,
+                post.author_handle,
+                post.prisme,
+                post.content,
+                ...(post.tags || [])
+            ].some(value => String(value || '').toLowerCase().includes(query)))
+            : state.posts;
+
         if (state.posts.length === 0) {
-            feedContainer.innerHTML = '<p style="text-align:center; color:var(--text-secondary)">Aucun Angle pour le moment. Soyez le premier !</p>';
+            feedContainer.innerHTML = emptyState('ph ph-sparkle', 'Aucun Angle pour le moment', 'Publiez la premiere perspective et lancez la conversation.');
             return;
         }
 
-        feedContainer.innerHTML = state.posts.map(post => `
+        if (visiblePosts.length === 0) {
+            feedContainer.innerHTML = emptyState('ph ph-magnifying-glass', 'Aucun resultat', 'Essayez un autre mot-cle, un prisme ou un pseudo.');
+            return;
+        }
+
+        feedContainer.innerHTML = visiblePosts.map(post => `
             <article class="post" data-id="${post.id}">
                 <header class="post-header" style="cursor:pointer;" onclick="navigateTo('profile', 'user=${post.author_handle}')">
                     <div class="avatar" style="background-image: url('${avatarUrl(post)}')"></div>
@@ -226,25 +265,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderSidebar() {
-        if (trendingList) trendingList.innerHTML = state.trending.map(t => `
-            <li class="trending-item">
-                <p class="topic">${escapeHtml(t.topic)}</p>
-                <p class="count">${escapeHtml(t.count)}</p>
-            </li>
-        `).join('');
+        if (trendingList) {
+            trendingList.innerHTML = state.trending.length
+                ? state.trending.map(t => `
+                    <li class="trending-item">
+                        <p class="topic">${escapeHtml(t.topic)}</p>
+                        <p class="count">${escapeHtml(t.count)}</p>
+                    </li>
+                `).join('')
+                : '<li class="trending-item"><p class="topic">Aucun sujet</p><p class="count">Publiez un Angle pour lancer le flux.</p></li>';
+        }
 
-        if (suggestionsList) suggestionsList.innerHTML = state.suggestions.map(s => `
-            <li class="suggestion-item">
-                <div class="suggestion-info">
-                    <div class="avatar" style="background-image: url('https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(s.name || s.handle || 'user')}')"></div>
-                    <div>
-                        <p>${escapeHtml(s.name)}</p>
-                        <p style="font-size: 12px; color: var(--text-secondary)">${escapeHtml(s.handle)}</p>
-                    </div>
-                </div>
-                <button class="btn-follow">Suivre</button>
-            </li>
-        `).join('');
+        if (suggestionsList) {
+            suggestionsList.innerHTML = state.suggestions.length
+                ? state.suggestions.map(s => `
+                    <li class="suggestion-item">
+                        <div class="suggestion-info">
+                            <div class="avatar" style="background-image: url('https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(s.name || s.handle || 'user')}')"></div>
+                            <div>
+                                <p>${escapeHtml(s.name)}</p>
+                                <p style="font-size: 12px; color: var(--text-secondary)">${escapeHtml(s.handle)}</p>
+                            </div>
+                        </div>
+                        <button class="btn-follow">Suivre</button>
+                    </li>
+                `).join('')
+                : '<li class="suggestion-item"><div><p>Pas de suggestion</p><p style="font-size:12px;color:var(--text-secondary)">Revenez apres quelques inscriptions.</p></div></li>';
+        }
     }
 
     // Interactions
@@ -508,6 +555,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (verificationMsg) verificationMsg.style.display = 'none';
     }
 
+    function ensurePhoneAuthUI() {
+        if (!authForm || document.getElementById('auth-phone-section')) return;
+        const section = document.createElement('div');
+        section.id = 'auth-phone-section';
+        section.innerHTML = `
+            <div style="display:flex; align-items:center; gap:10px; color:var(--text-secondary); font-size:12px; margin:4px 0 12px;">
+                <span style="height:1px; background:var(--border-color); flex:1;"></span>
+                <span>ou par téléphone</span>
+                <span style="height:1px; background:var(--border-color); flex:1;"></span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <input type="tel" id="auth-phone" class="input-field" placeholder="+2250102030405">
+                <button type="button" class="btn-secondary" id="btn-send-sms" style="width:100%;">Recevoir un code SMS</button>
+                <input type="text" id="auth-sms-code" class="input-field" placeholder="Code reçu par SMS" inputmode="numeric" style="display:none;">
+                <button type="button" class="btn-primary" id="btn-confirm-sms" style="width:100%; display:none;">Valider le code</button>
+                <div id="recaptcha-container"></div>
+            </div>
+        `;
+        const forgotLink = document.getElementById('auth-forgot-pw');
+        authForm.insertBefore(section, forgotLink);
+    }
+
     if (authToggle) {
         authToggle.addEventListener('click', (e) => {
             e.preventDefault();
@@ -516,6 +585,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     syncAuthMode();
+    ensurePhoneAuthUI();
+
+    const forgotLink = document.getElementById('auth-forgot-pw');
+    if (forgotLink) {
+        forgotLink.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value.trim();
+            if (!email) return alert("Entrez votre email, puis cliquez sur mot de passe oublié.");
+            try {
+                const res = await fetch(`${API_URL}/auth/forgot-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json().catch(() => ({}));
+                alert(data.message || "Si cet email existe, un lien a été envoyé.");
+            } catch (error) {
+                alert("Impossible d'envoyer le mail de réinitialisation pour le moment.");
+            }
+        });
+    }
 
     // Auth Submission (Email & Password via custom API)
     authForm.addEventListener('submit', async (e) => {
@@ -588,8 +678,10 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 provider,
+                uid: firebaseUser.uid,
                 name: firebaseUser.displayName,
                 email: firebaseUser.email,
+                phoneNumber: firebaseUser.phoneNumber,
                 avatar_url: firebaseUser.photoURL
             })
         });
@@ -646,33 +738,56 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Phone SMS Logic
-    setTimeout(() => {
-        if(window.fbAuthMethods && window.firebaseAuth && document.getElementById('btn-send-sms')) {
-            window.recaptchaVerifier = new window.fbAuthMethods.RecaptchaVerifier(window.firebaseAuth, 'recaptcha-container', {
-                'size': 'invisible' // ou 'normal'
-            });
+    const btnSendSms = document.getElementById('btn-send-sms');
+    const btnConfirmSms = document.getElementById('btn-confirm-sms');
+    if (btnSendSms) {
+        btnSendSms.addEventListener('click', async () => {
+            if(!window.firebaseAuth || !window.fbAuthMethods) return alert("Firebase non configure.");
+            const phoneNumber = document.getElementById('auth-phone').value.trim();
+            if (!phoneNumber.startsWith('+')) {
+                return alert("Entrez le numero au format international, par exemple +2250102030405.");
+            }
 
-            document.getElementById('btn-send-sms').addEventListener('click', async () => {
-                const phoneNumber = document.getElementById('auth-phone').value;
-                if (!phoneNumber) return alert("Entrez un numéro de téléphone valide avec l'indicatif (ex: +33600000000)");
-                
-                try {
-                    const confirmationResult = await window.fbAuthMethods.signInWithPhoneNumber(window.firebaseAuth, phoneNumber, window.recaptchaVerifier);
-                    window.confirmationResult = confirmationResult;
-                    
-                    document.getElementById('btn-send-sms').style.display = 'none';
-                    document.getElementById('auth-sms-code').style.display = 'block';
-                    alert("Un SMS contenant un code à 6 chiffres a été envoyé au " + phoneNumber);
-                } catch(e) {
-                    console.error(e);
-                    alert("Erreur SMS: " + e.message);
-                    window.recaptchaVerifier.render().then(function(widgetId) {
-                      grecaptcha.reset(widgetId);
-                    });
+            try {
+                if (!window.recaptchaVerifier) {
+                    window.recaptchaVerifier = new window.fbAuthMethods.RecaptchaVerifier(
+                        'recaptcha-container',
+                        { size: 'invisible' }
+                    );
                 }
-            });
-        }
-    }, 1500);
+                window.confirmationResult = await window.fbAuthMethods.signInWithPhoneNumber(
+                    window.firebaseAuth,
+                    phoneNumber,
+                    window.recaptchaVerifier
+                );
+                document.getElementById('auth-sms-code').style.display = 'block';
+                if (btnConfirmSms) btnConfirmSms.style.display = 'block';
+                btnSendSms.textContent = 'Renvoyer le code';
+                alert("Un code SMS a ete envoye au " + phoneNumber);
+            } catch(e) {
+                console.error(e);
+                alert("Erreur SMS: " + e.message);
+            }
+        });
+    }
+
+    if (btnConfirmSms) {
+        btnConfirmSms.addEventListener('click', async () => {
+            const code = document.getElementById('auth-sms-code').value.trim();
+            if (!code || !window.confirmationResult) return alert("Entrez le code recu par SMS.");
+            try {
+                btnConfirmSms.disabled = true;
+                btnConfirmSms.textContent = 'Validation...';
+                const result = await window.confirmationResult.confirm(code);
+                await completeSocialLogin('phone', result.user);
+            } catch(e) {
+                alert("Code SMS invalide ou expire.");
+            } finally {
+                btnConfirmSms.disabled = false;
+                btnConfirmSms.textContent = 'Valider le code';
+            }
+        });
+    }
 
     // =============================================
     // ROUTEUR SPA — Navigation entre les vues
@@ -734,13 +849,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchAndRenderTrending() {
         const list = document.getElementById('trending-full-list');
         if (!list) return;
-        list.innerHTML = '<p style="color:var(--text-secondary); padding:16px;">Chargement...</p>';
+        list.innerHTML = emptyState('ph ph-circle-notch', 'Chargement', 'On recupere les sujets du moment.');
         try {
             const res = await fetch(`${API_URL}/trending`);
             const data = await res.json();
             state.trending = data;
             if (data.length === 0) {
-                list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:24px;">Aucun sujet pour le moment.</p>';
+                list.innerHTML = emptyState('ph ph-trend-up', 'Pas encore de tendance', 'Les sujets apparaitront ici quand les Angles commenceront a circuler.');
                 return;
             }
             list.innerHTML = data.map((t, i) => `
@@ -754,7 +869,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `).join('');
         } catch (e) {
-            list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:24px;">Erreur de chargement.</p>';
+            list.innerHTML = emptyState('ph ph-warning-circle', 'Chargement impossible', 'Reessayez dans un instant.');
         }
     }
 
@@ -762,10 +877,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchAndRenderNotifications() {
         const container = document.getElementById('view-notifications');
         if (!container || !state.token) {
-            if (container) container.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:48px;">Connectez-vous pour voir vos notifications.</p>';
+            if (container) container.innerHTML = emptyState('ph ph-lock-key', 'Connexion requise', 'Connectez-vous pour voir vos notifications.');
             return;
         }
-        container.innerHTML = '<p style="color:var(--text-secondary); padding:24px;">Chargement...</p>';
+        container.innerHTML = emptyState('ph ph-circle-notch', 'Chargement', 'On recupere vos notifications.');
         try {
             const res = await fetch(`${API_URL}/notifications`, {
                 headers: { 'Authorization': `Bearer ${state.token}` }
@@ -773,7 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
 
             if (!Array.isArray(data) || data.length === 0) {
-                container.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:48px;">Aucune notification pour le moment.</p>';
+                container.innerHTML = emptyState('ph ph-bell-ringing', 'Aucune notification', 'Les likes, commentaires et nouveaux abonnes arriveront ici.');
                 return;
             }
 
@@ -811,7 +926,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).join('')}
             </div>`;
         } catch (e) {
-            container.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:48px;">Erreur de chargement.</p>';
+            container.innerHTML = emptyState('ph ph-warning-circle', 'Chargement impossible', 'Reessayez dans un instant.');
         }
     }
 
@@ -822,7 +937,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetHandle = urlParams.get('user');
 
         if (!targetHandle && (!state.user || !state.token)) {
-            if(profileView) profileView.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:48px;">Connectez-vous pour voir votre profil.</p>';
+            if(profileView) profileView.innerHTML = emptyState('ph ph-user-circle', 'Connexion requise', 'Connectez-vous pour afficher et modifier votre profil.');
             return;
         }
 
@@ -901,7 +1016,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const profileFeed = document.getElementById('profile-feed');
                 if (profileFeed) {
                     if (!Array.isArray(angles) || angles.length === 0) {
-                        profileFeed.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:24px;">Aucun Angle publié pour le moment.</p>';
+                        profileFeed.innerHTML = emptyState('ph ph-note-pencil', 'Aucun Angle publie', 'Les publications de ce profil apparaitront ici.');
                     } else {
                         profileFeed.innerHTML = angles.map(post => `
                             <article class="post">
@@ -1070,7 +1185,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!container) return;
         
         if (!state.token || !state.user) {
-            container.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:48px;">Connectez-vous pour voir vos messages.</p>';
+            container.innerHTML = emptyState('ph ph-lock-key', 'Connexion requise', 'Connectez-vous pour acceder a vos messages.');
             return;
         }
 
@@ -1082,8 +1197,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <h2 style="font-size:18px; margin-bottom:12px;">Messages</h2>
                         <div class="search-bar" style="width:100%;"><i class="ph ph-magnifying-glass"></i><input type="text" id="chat-search" placeholder="Chercher @handle…" style="width:100%;"></div>
                     </div>
-                    <div id="conv-list" style="overflow-y:auto; flex:1;">
-                        <p style="color:var(--text-secondary); padding:16px; text-align:center;">Chargement...</p>
+                    <div id="conv-list" style="overflow-y:auto; flex:1; padding:12px;">
+                        ${emptyState('ph ph-circle-notch', 'Chargement', 'On recupere vos conversations.')}
                     </div>
                 </div>
                 <div id="chat-area" style="flex:1; display:flex; flex-direction:column; background:var(--bg-color); min-height:0;">
@@ -1132,7 +1247,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await res.json();
                 convList.innerHTML = '';
                 if (data.length === 0) {
-                    convList.innerHTML = '<p style="color:var(--text-secondary); padding:16px; text-align:center; font-size:14px;">Aucune conversation.</p>';
+                    convList.innerHTML = emptyState('ph ph-chat-circle-text', 'Aucune conversation', 'Cherchez un @handle pour commencer.');
                 } else {
                     data.forEach(u => {
                         const div = document.createElement('div');
@@ -1167,7 +1282,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div id="chat-messages" style="flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;">
-                    <div style="text-align:center; color:var(--text-secondary);">Chargement...</div>
+                    ${emptyState('ph ph-circle-notch', 'Chargement', 'On recupere les messages.')}
                 </div>
                 <div style="padding:16px;border-top:1px solid var(--border-color);display:flex;gap:12px;align-items:center;">
                     <input type="text" id="chat-input" placeholder="Écrire un message..." class="input-field" style="flex:1;">
@@ -1188,7 +1303,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const messages = await res.json();
                 document.getElementById('chat-messages').innerHTML = '';
                 if(messages.length === 0) {
-                    document.getElementById('chat-messages').innerHTML = '<div style="text-align:center; color:var(--text-secondary); margin-top: auto; margin-bottom:auto;">Dites bonjour ! 👋</div>';
+                    document.getElementById('chat-messages').innerHTML = emptyState('ph ph-hand-waving', 'Dites bonjour', 'Envoyez le premier message de la conversation.');
                 } else {
                     messages.forEach(m => {
                         appendMessageToUI(m, m.sender_id === state.user.id);
@@ -1245,6 +1360,3 @@ document.addEventListener('DOMContentLoaded', () => {
         loadConversations();
     }
 });
-
-
-

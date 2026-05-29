@@ -1,64 +1,89 @@
-import nodemailer from 'nodemailer';
-import dotenv from 'dotenv';
+import nodemailer from "nodemailer";
+import dotenv from "dotenv";
 dotenv.config();
 
+const APP_URL = process.env.APP_URL || "http://localhost:3000";
+const FROM_ADDRESS = process.env.MAIL_FROM || "Prisme <support@prisme.app>";
+const REPLY_TO = process.env.MAIL_REPLY_TO || process.env.MAIL_USER || "support@prisme.app";
+
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  service: "gmail",
   auth: {
     user: process.env.MAIL_USER,
     pass: process.env.MAIL_PASS,
   },
 });
 
-const APP_URL = process.env.APP_URL || 'http://localhost:5501';
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
-// ── Template de base ────────────────────────────────────────────────────────
-function baseTemplate(content) {
-  return `<!DOCTYPE html>
+function baseTemplate({ eyebrow, title, body, ctaLabel, ctaUrl, note, tone = "lime" }) {
+  const accent = tone === "danger" ? "#ff6b4a" : tone === "welcome" ? "#48d6d2" : "#a3ff12";
+  const safeTitle = escapeHtml(title);
+  const safeBody = body;
+
+  return `<!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prisme</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>${safeTitle}</title>
 </head>
-<body style="margin:0;padding:0;background:#0a0a0a;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:40px 20px;">
+<body style="margin:0;padding:0;background:#090a0c;color:#f4f2ea;font-family:Arial,Helvetica,sans-serif;">
+  <div style="display:none;max-height:0;overflow:hidden;color:transparent;">
+    ${safeTitle} - Prisme
+  </div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#090a0c;padding:32px 16px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-
-          <!-- HEADER -->
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;">
           <tr>
-            <td align="center" style="padding-bottom:32px;">
-              <table cellpadding="0" cellspacing="0">
+            <td style="padding:0 0 18px;">
+              <table role="presentation" cellspacing="0" cellpadding="0">
                 <tr>
-                  <td style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:16px 32px;text-align:center;">
-                    <span style="font-size:28px;font-weight:800;color:#ffffff;letter-spacing:-1px;">&#9651; Prisme</span>
-                  </td>
+                  <td style="width:38px;height:38px;border-radius:12px;background:${accent};color:#10130a;text-align:center;font-size:22px;font-weight:800;">△</td>
+                  <td style="padding-left:12px;color:#f4f2ea;font-size:22px;font-weight:800;letter-spacing:-0.2px;">Prisme</td>
                 </tr>
               </table>
             </td>
           </tr>
-
-          <!-- BODY CARD -->
           <tr>
-            <td style="background:rgba(20,20,20,0.9);border:1px solid rgba(255,255,255,0.08);border-radius:24px;overflow:hidden;">
-              ${content}
+            <td style="border:1px solid rgba(244,242,234,0.12);border-radius:22px;overflow:hidden;background:#14171c;">
+              <div style="height:5px;background:${accent};"></div>
+              <div style="padding:34px 30px 30px;">
+                <p style="margin:0 0 12px;color:${accent};font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:0.12em;">${escapeHtml(eyebrow)}</p>
+                <h1 style="margin:0 0 16px;color:#f4f2ea;font-size:28px;line-height:1.16;font-weight:800;">${safeTitle}</h1>
+                <div style="color:#c6ccd4;font-size:16px;line-height:1.65;margin:0 0 28px;">${safeBody}</div>
+                <table role="presentation" cellspacing="0" cellpadding="0" style="margin:0 0 26px;">
+                  <tr>
+                    <td style="border-radius:14px;background:${accent};">
+                      <a href="${ctaUrl}" style="display:inline-block;padding:15px 24px;color:#10130a;text-decoration:none;font-weight:800;font-size:15px;">${escapeHtml(ctaLabel)}</a>
+                    </td>
+                  </tr>
+                </table>
+                <div style="padding:16px;border:1px solid rgba(244,242,234,0.1);border-radius:14px;background:rgba(244,242,234,0.04);">
+                  <p style="margin:0;color:#a5adb7;font-size:13px;line-height:1.55;">${note}</p>
+                </div>
+                <p style="margin:22px 0 0;color:#747d89;font-size:12px;line-height:1.55;">
+                  Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br>
+                  <a href="${ctaUrl}" style="color:${accent};word-break:break-all;">${ctaUrl}</a>
+                </p>
+              </div>
             </td>
           </tr>
-
-          <!-- FOOTER -->
           <tr>
-            <td align="center" style="padding-top:32px;">
-              <p style="color:#444;font-size:12px;margin:0;">
-                © 2025 Prisme · Perspectives Partagées<br>
-                <a href="${APP_URL}" style="color:#666;text-decoration:none;">Visiter Prisme</a>
-                &nbsp;·&nbsp;
-                <a href="${APP_URL}" style="color:#666;text-decoration:none;">Se désabonner</a>
-              </p>
+            <td align="center" style="padding:22px 10px 0;color:#626b76;font-size:12px;line-height:1.55;">
+              Prisme - Perspectives partagées<br>
+              <a href="${APP_URL}" style="color:#8b949f;text-decoration:none;">${APP_URL}</a>
             </td>
           </tr>
-
         </table>
       </td>
     </tr>
@@ -67,165 +92,75 @@ function baseTemplate(content) {
 </html>`;
 }
 
-// ── Email de vérification ───────────────────────────────────────────────────
+function sendTransactionalMail({ to, subject, html, text }) {
+  return transporter.sendMail({
+    from: FROM_ADDRESS,
+    replyTo: REPLY_TO,
+    to,
+    subject,
+    html,
+    text,
+    headers: {
+      "X-Entity-Ref-ID": `prisme-${Date.now()}`,
+      "X-Auto-Response-Suppress": "OOF, AutoReply",
+    },
+  });
+}
+
 export async function sendVerificationEmail(toEmail, toName, verificationLink) {
-  const content = `
-    <!-- Top accent bar -->
-    <div style="height:4px;background:linear-gradient(90deg,#ffffff 0%,#888888 100%);"></div>
+  const name = escapeHtml(toName || "Bienvenue");
+  const html = baseTemplate({
+    eyebrow: "Verification du compte",
+    title: "Vérifiez votre adresse e-mail",
+    body: `<p style="margin:0;">Bonjour <strong style="color:#f4f2ea;">${name}</strong>, confirmez votre adresse e-mail pour activer votre compte Prisme et publier vos Angles.</p>`,
+    ctaLabel: "Vérifier mon e-mail",
+    ctaUrl: verificationLink,
+    note: "Ce lien expire dans 24 heures. Si vous n'avez pas créé de compte sur Prisme, vous pouvez ignorer cet e-mail.",
+  });
 
-    <div style="padding:48px 40px;">
-      <!-- Icon -->
-      <div style="text-align:center;margin-bottom:32px;">
-        <div style="display:inline-block;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:50%;width:72px;height:72px;line-height:72px;font-size:32px;text-align:center;">
-          &#10003;
-        </div>
-      </div>
-
-      <!-- Title -->
-      <h1 style="color:#ffffff;font-size:26px;font-weight:700;text-align:center;margin:0 0 12px;letter-spacing:-0.5px;">
-        Vérifiez votre adresse e-mail
-      </h1>
-      <p style="color:#888;font-size:16px;text-align:center;margin:0 0 40px;line-height:1.6;">
-        Bonjour <strong style="color:#fff;">${toName}</strong>, bienvenue sur Prisme.<br>
-        Confirmez votre email pour accéder à toutes les fonctionnalités.
-      </p>
-
-      <!-- CTA Button -->
-      <div style="text-align:center;margin-bottom:40px;">
-        <a href="${verificationLink}"
-          style="display:inline-block;background:#ffffff;color:#000000;font-size:16px;font-weight:700;text-decoration:none;padding:16px 40px;border-radius:50px;letter-spacing:0.3px;">
-          Vérifier mon e-mail
-        </a>
-      </div>
-
-      <!-- Divider -->
-      <div style="border-top:1px solid rgba(255,255,255,0.06);margin-bottom:32px;"></div>
-
-      <!-- Info box -->
-      <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px 24px;">
-        <p style="color:#666;font-size:13px;margin:0 0 8px;">
-          <strong style="color:#888;">Lien ne fonctionne pas ?</strong> Copiez-collez l'URL suivante dans votre navigateur :
-        </p>
-        <p style="color:#555;font-size:12px;word-break:break-all;margin:0;">
-          ${verificationLink}
-        </p>
-      </div>
-
-      <p style="color:#444;font-size:12px;text-align:center;margin-top:32px;line-height:1.6;">
-        Si vous n'avez pas créé de compte sur Prisme, ignorez simplement cet e-mail.
-        <br>Ce lien expire dans 24 heures.
-      </p>
-    </div>
-  `;
-
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM || 'Prisme <noreply@prisme.app>',
+  await sendTransactionalMail({
     to: toEmail,
-    subject: 'Vérifiez votre adresse e-mail — Prisme',
-    html: baseTemplate(content),
+    subject: "Vérifiez votre e-mail pour Prisme",
+    html,
+    text: `Bonjour ${toName || ""}, vérifiez votre e-mail Prisme : ${verificationLink}\nCe lien expire dans 24 heures.`,
   });
 }
 
-// ── Email de réinitialisation de mot de passe ───────────────────────────────
 export async function sendPasswordResetEmail(toEmail, toName, resetLink) {
-  const content = `
-    <div style="height:4px;background:linear-gradient(90deg,#ff6b6b 0%,#ee5a24 100%);"></div>
+  const name = escapeHtml(toName || "Bonjour");
+  const html = baseTemplate({
+    eyebrow: "Securite du compte",
+    title: "Réinitialisez votre mot de passe",
+    body: `<p style="margin:0;">Bonjour <strong style="color:#f4f2ea;">${name}</strong>, utilisez ce lien pour choisir un nouveau mot de passe Prisme.</p>`,
+    ctaLabel: "Réinitialiser mon mot de passe",
+    ctaUrl: resetLink,
+    note: "Ce lien expire dans 1 heure. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.",
+    tone: "danger",
+  });
 
-    <div style="padding:48px 40px;">
-      <div style="text-align:center;margin-bottom:32px;">
-        <div style="display:inline-block;background:rgba(255,107,107,0.1);border:1px solid rgba(255,107,107,0.2);border-radius:50%;width:72px;height:72px;line-height:72px;font-size:32px;text-align:center;color:#ff6b6b;">
-          &#128274;
-        </div>
-      </div>
-
-      <h1 style="color:#ffffff;font-size:26px;font-weight:700;text-align:center;margin:0 0 12px;letter-spacing:-0.5px;">
-        Réinitialiser votre mot de passe
-      </h1>
-      <p style="color:#888;font-size:16px;text-align:center;margin:0 0 40px;line-height:1.6;">
-        Bonjour <strong style="color:#fff;">${toName}</strong>,<br>
-        Vous avez demandé la réinitialisation de votre mot de passe.
-      </p>
-
-      <div style="text-align:center;margin-bottom:40px;">
-        <a href="${resetLink}"
-          style="display:inline-block;background:#ff6b6b;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;padding:16px 40px;border-radius:50px;">
-          Réinitialiser mon mot de passe
-        </a>
-      </div>
-
-      <div style="border-top:1px solid rgba(255,255,255,0.06);margin-bottom:32px;"></div>
-
-      <div style="background:rgba(255,107,107,0.05);border:1px solid rgba(255,107,107,0.1);border-radius:12px;padding:20px 24px;">
-        <p style="color:#888;font-size:13px;margin:0;">
-          <strong style="color:#ff6b6b;">Sécurité :</strong> Si vous n'avez pas demandé cette réinitialisation,
-          ignorez cet e-mail. Votre mot de passe restera inchangé.
-        </p>
-      </div>
-
-      <p style="color:#444;font-size:12px;text-align:center;margin-top:32px;">
-        Ce lien expire dans 1 heure.
-      </p>
-    </div>
-  `;
-
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM || 'Prisme <noreply@prisme.app>',
+  await sendTransactionalMail({
     to: toEmail,
-    subject: 'Réinitialisation de mot de passe — Prisme',
-    html: baseTemplate(content),
+    subject: "Réinitialisation de mot de passe - Prisme",
+    html,
+    text: `Bonjour ${toName || ""}, réinitialisez votre mot de passe Prisme : ${resetLink}\nCe lien expire dans 1 heure.`,
   });
 }
 
-// ── Email de bienvenue (post-vérification) ──────────────────────────────────
 export async function sendWelcomeEmail(toEmail, toName) {
-  const content = `
-    <div style="height:4px;background:linear-gradient(90deg,#6c5ce7 0%,#a29bfe 100%);"></div>
+  const html = baseTemplate({
+    eyebrow: "Compte active",
+    title: "Bienvenue sur Prisme",
+    body: `<p style="margin:0;">Bonjour <strong style="color:#f4f2ea;">${escapeHtml(toName || "")}</strong>, votre compte est prêt. Vous pouvez maintenant partager vos perspectives et suivre les Prismes qui vous intéressent.</p>`,
+    ctaLabel: "Ouvrir Prisme",
+    ctaUrl: APP_URL,
+    note: "Cet e-mail confirme l'activation de votre compte. Gardez-le comme repère officiel de Prisme.",
+    tone: "welcome",
+  });
 
-    <div style="padding:48px 40px;text-align:center;">
-      <div style="margin-bottom:32px;">
-        <div style="display:inline-block;background:rgba(108,92,231,0.1);border:1px solid rgba(108,92,231,0.2);border-radius:50%;width:72px;height:72px;line-height:72px;font-size:36px;">
-          &#9733;
-        </div>
-      </div>
-
-      <h1 style="color:#ffffff;font-size:28px;font-weight:800;margin:0 0 12px;letter-spacing:-0.5px;">
-        Bienvenue sur Prisme !
-      </h1>
-      <p style="color:#888;font-size:16px;margin:0 0 40px;line-height:1.7;">
-        Bonjour <strong style="color:#fff;">${toName}</strong>,<br>
-        Votre compte est activé. Partagez votre perspective unique avec le monde.
-      </p>
-
-      <a href="${APP_URL}"
-        style="display:inline-block;background:#ffffff;color:#000;font-size:16px;font-weight:700;text-decoration:none;padding:16px 40px;border-radius:50px;margin-bottom:40px;">
-        Commencer à explorer
-      </a>
-
-      <div style="border-top:1px solid rgba(255,255,255,0.06);margin-bottom:32px;"></div>
-
-      <table width="100%" cellpadding="0" cellspacing="0">
-        <tr>
-          <td align="center" style="padding:8px;">
-            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;text-align:center;">
-              <p style="color:#fff;font-size:20px;font-weight:700;margin:0 0 4px;">Angles</p>
-              <p style="color:#666;font-size:13px;margin:0;">Partagez vos perspectives</p>
-            </div>
-          </td>
-          <td align="center" style="padding:8px;">
-            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;text-align:center;">
-              <p style="color:#fff;font-size:20px;font-weight:700;margin:0 0 4px;">Prismes</p>
-              <p style="color:#666;font-size:13px;margin:0;">Rejoignez des communautés</p>
-            </div>
-          </td>
-        </tr>
-      </table>
-    </div>
-  `;
-
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM || 'Prisme <noreply@prisme.app>',
+  await sendTransactionalMail({
     to: toEmail,
-    subject: 'Bienvenue sur Prisme — Votre compte est activé !',
-    html: baseTemplate(content),
+    subject: "Bienvenue sur Prisme",
+    html,
+    text: `Bienvenue sur Prisme, ${toName || ""}. Ouvrir l'application : ${APP_URL}`,
   });
 }
