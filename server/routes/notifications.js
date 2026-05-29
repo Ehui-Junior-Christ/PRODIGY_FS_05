@@ -44,8 +44,19 @@ router.get("/", requireAuth, async (req, res) => {
       args: [userId]
     });
 
+    const commentsRes = await client.execute({
+      sql: `SELECT 'comment' as type, u.name as actor_name, u.handle as actor_handle,
+             c.content as comment_content, a.content as angle_content, a.id as angle_id, c.created_at
+             FROM comments c
+             JOIN users u ON c.user_id = u.id
+             JOIN angles a ON c.angle_id = a.id
+             WHERE a.author_id = ? AND c.user_id != ?
+             ORDER BY c.created_at DESC LIMIT 20`,
+      args: [userId, userId]
+    });
+
     // Fusionner et trier par date
-    const all = [...likesRes.rows, ...followsRes.rows]
+    const all = [...likesRes.rows, ...followsRes.rows, ...commentsRes.rows]
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       .slice(0, 30);
 

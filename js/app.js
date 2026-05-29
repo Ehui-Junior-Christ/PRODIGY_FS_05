@@ -1,4 +1,8 @@
-const API_URL = 'http://localhost:3000/api';
+const STATIC_DEV_PORTS = new Set(['5500', '5501', '5173']);
+const BACKEND_ORIGIN = window.location.protocol.startsWith('http') && !STATIC_DEV_PORTS.has(window.location.port)
+    ? window.location.origin
+    : 'http://localhost:3000';
+const API_URL = `${BACKEND_ORIGIN}/api`;
 
 // ── Theme Toggle (persistent) ─────────────────────────────
 const savedTheme = localStorage.getItem('prisme_theme') || 'dark';
@@ -21,8 +25,32 @@ document.addEventListener('DOMContentLoaded', () => {
         trending: [],
         suggestions: [],
         user: JSON.parse(localStorage.getItem('prisme_user')) || null,
-        token: localStorage.getItem('prisme_token') || null
+        token: localStorage.getItem('prisme_token') || null,
+        openComments: new Set()
     };
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function avatarUrl(user) {
+        return user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.handle || user?.author_handle || 'user')}`;
+    }
+
+    function saveSession(data) {
+        state.token = data.token;
+        state.user = data.user;
+        localStorage.setItem('prisme_token', state.token);
+        localStorage.setItem('prisme_user', JSON.stringify(state.user));
+        updateAuthUI();
+        fetchPosts();
+        if (currentView === 'profile') fetchAndRenderProfile();
+    }
 
     // DOM Elements
     const feedContainer = document.getElementById('feed-container');
@@ -46,9 +74,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleThemeToggle() {
         isDark = !isDark;
         applyTheme(isDark);
+        updateThemeButtons();
+    }
+
+    function updateThemeButtons() {
+        const iconClass = isDark ? 'ph ph-sun' : 'ph ph-moon';
+        [btnThemeToggle, btnThemeMobile].forEach((button) => {
+            const icon = button?.querySelector('i');
+            if (icon) icon.className = iconClass;
+            if (button) button.setAttribute('aria-label', isDark ? 'Passer au thème clair' : 'Passer au thème sombre');
+        });
     }
     if (btnThemeToggle)  btnThemeToggle.addEventListener('click', handleThemeToggle);
     if (btnThemeMobile)  btnThemeMobile.addEventListener('click', handleThemeToggle);
+    updateThemeButtons();
 
     // Create Modal
     const createBtn = document.getElementById('btn-create-prisme');
@@ -139,9 +178,9 @@ document.addEventListener('DOMContentLoaded', () => {
         feedContainer.innerHTML = state.posts.map(post => `
             <article class="post" data-id="${post.id}">
                 <header class="post-header" style="cursor:pointer;" onclick="navigateTo('profile', 'user=${post.author_handle}')">
-                    <div class="avatar" style="background-image: url('https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author_handle}')"></div>
+                    <div class="avatar" style="background-image: url('${avatarUrl(post)}')"></div>
                     <div class="post-meta" style="flex:1;">
-                        <h3>${post.author} <span style="font-weight:normal; font-size:13px; color:var(--text-secondary);">@${post.author_handle}</span> <span class="prisme-tag">dans #${post.prisme}</span></h3>
+                        <h3>${escapeHtml(post.author)} <span style="font-weight:normal; font-size:13px; color:var(--text-secondary);">@${escapeHtml(post.author_handle)}</span> <span class="prisme-tag">dans #${escapeHtml(post.prisme || 'General')}</span></h3>
                         <p>${post.created_at ? new Date(post.created_at).toLocaleDateString() : ''}</p>
                     </div>
                     <div class="post-options-container" onclick="event.stopPropagation();">
@@ -158,40 +197,49 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                     </div>
                 </header>
-                <p class="post-content">${post.content}</p>
+                <p class="post-content">${escapeHtml(post.content)}</p>
                 ${post.media_url ? `<div style="margin-top:12px; border-radius:12px; overflow:hidden; border:1px solid var(--border-color);"><img src="${post.media_url}" style="width:100%; display:block;" alt="Media attaché"></div>` : ''}
                 <div class="post-tags">
-                    ${(post.tags || []).map(tag => `<span class="tag">#${tag}</span>`).join('')}
+                    ${(post.tags || []).map(tag => `<span class="tag">#${escapeHtml(tag)}</span>`).join('')}
                 </div>
                 <footer class="post-actions">
                     <button class="action-btn ${post.isLiked ? 'liked' : ''}" onclick="toggleLike(${post.id})">
                         <i class="${post.isLiked ? 'ph-fill' : 'ph'} ph-heart" style="font-size: 20px; ${post.isLiked ? 'color: #ff4757;' : ''}"></i>
                         <span id="like-count-${post.id}">${post.likes}</span>
                     </button>
-                    <button class="action-btn">
+                    <button class="action-btn" onclick="toggleComments(${post.id})">
                         <i class="ph ph-chat-circle" style="font-size: 20px;"></i>
-                        ${post.comments}
+                        <span id="comment-count-${post.id}">${post.comments || 0}</span>
                     </button>
                 </footer>
+                <section class="comments-panel" id="comments-panel-${post.id}" style="display:${state.openComments.has(post.id) ? 'block' : 'none'}; margin-top:14px; border-top:1px solid var(--border-color); padding-top:14px;">
+                    <div id="comments-list-${post.id}" style="display:flex; flex-direction:column; gap:10px;"></div>
+                    <form onsubmit="submitComment(event, ${post.id})" style="display:flex; gap:10px; margin-top:12px;">
+                        <input class="input-field" id="comment-input-${post.id}" placeholder="Ajouter un commentaire..." style="flex:1; margin:0;">
+                        <button class="btn-primary" type="submit" style="padding:10px 14px;"><i class="ph-fill ph-paper-plane-right"></i></button>
+                    </form>
+                </section>
             </article>
         `).join('');
+
+        state.openComments.forEach(id => loadComments(id));
     }
 
     function renderSidebar() {
-        trendingList.innerHTML = state.trending.map(t => `
+        if (trendingList) trendingList.innerHTML = state.trending.map(t => `
             <li class="trending-item">
-                <p class="topic">${t.topic}</p>
-                <p class="count">${t.count}</p>
+                <p class="topic">${escapeHtml(t.topic)}</p>
+                <p class="count">${escapeHtml(t.count)}</p>
             </li>
         `).join('');
 
-        suggestionsList.innerHTML = state.suggestions.map(s => `
+        if (suggestionsList) suggestionsList.innerHTML = state.suggestions.map(s => `
             <li class="suggestion-item">
                 <div class="suggestion-info">
-                    <div class="avatar" style="background-image: url('https://api.dicebear.com/7.x/avataaars/svg?seed=${s.name}')"></div>
+                    <div class="avatar" style="background-image: url('https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(s.name || s.handle || 'user')}')"></div>
                     <div>
-                        <p>${s.name}</p>
-                        <p style="font-size: 12px; color: var(--text-secondary)">${s.handle}</p>
+                        <p>${escapeHtml(s.name)}</p>
+                        <p style="font-size: 12px; color: var(--text-secondary)">${escapeHtml(s.handle)}</p>
                     </div>
                 </div>
                 <button class="btn-follow">Suivre</button>
@@ -219,6 +267,81 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.error("Failed to like", e);
+        }
+    };
+
+    async function loadComments(id) {
+        const list = document.getElementById(`comments-list-${id}`);
+        if (!list) return;
+
+        list.innerHTML = '<p style="color:var(--text-secondary); font-size:13px;">Chargement des commentaires...</p>';
+        try {
+            const res = await fetch(`${API_URL}/angles/${id}/comments`);
+            const comments = await res.json();
+            if (!Array.isArray(comments) || comments.length === 0) {
+                list.innerHTML = '<p style="color:var(--text-secondary); font-size:13px;">Aucun commentaire pour le moment.</p>';
+                return;
+            }
+
+            list.innerHTML = comments.map(comment => `
+                <div style="display:flex; gap:10px; align-items:flex-start;">
+                    <div class="avatar" style="width:32px;height:32px;background-image:url('${avatarUrl(comment)}');flex-shrink:0;"></div>
+                    <div style="background:var(--hover-bg); border:1px solid var(--border-color); border-radius:12px; padding:10px 12px; flex:1;">
+                        <p style="font-size:13px; font-weight:600; margin:0 0 4px;">${escapeHtml(comment.author)} <span style="font-weight:400; color:var(--text-secondary);">@${escapeHtml(comment.author_handle)}</span></p>
+                        <p style="font-size:14px; margin:0;">${escapeHtml(comment.content)}</p>
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) {
+            list.innerHTML = '<p style="color:#ff4757; font-size:13px;">Impossible de charger les commentaires.</p>';
+        }
+    }
+
+    window.toggleComments = async (id) => {
+        const panel = document.getElementById(`comments-panel-${id}`);
+        if (!panel) return;
+
+        if (state.openComments.has(id)) {
+            state.openComments.delete(id);
+            panel.style.display = 'none';
+        } else {
+            state.openComments.add(id);
+            panel.style.display = 'block';
+            await loadComments(id);
+        }
+    };
+
+    window.submitComment = async (event, id) => {
+        event.preventDefault();
+        if (!state.token) return alert("Veuillez vous connecter pour commenter");
+
+        const input = document.getElementById(`comment-input-${id}`);
+        const content = input?.value.trim();
+        if (!content) return;
+
+        try {
+            const res = await fetch(`${API_URL}/angles/${id}/comments`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${state.token}`
+                },
+                body: JSON.stringify({ content })
+            });
+
+            if (res.ok) {
+                input.value = '';
+                const post = state.posts.find(p => p.id === id);
+                if (post) post.comments = (Number(post.comments) || 0) + 1;
+                const count = document.getElementById(`comment-count-${id}`);
+                if (count) count.textContent = post?.comments || Number(count.textContent || 0) + 1;
+                await loadComments(id);
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert(data.error || "Erreur lors du commentaire");
+            }
+        } catch (e) {
+            alert("Erreur reseau lors du commentaire");
         }
     };
 
@@ -367,17 +490,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Auth Logic
-    authToggle.addEventListener('click', (e) => {
-        e.preventDefault();
-        isLoginMode = !isLoginMode;
-        authModeText.textContent = isLoginMode ? "Connexion" : "Inscription";
-        authToggle.textContent = isLoginMode ? "Pas encore de compte ? S'inscrire" : "Déjà un compte ? Se connecter";
-        document.getElementById('auth-name-group').style.display = isLoginMode ? 'none' : 'block';
-        document.getElementById('auth-handle-group').style.display = isLoginMode ? 'none' : 'block';
-        document.getElementById('auth-terms-group').style.display = isLoginMode ? 'none' : 'block';
-        document.getElementById('auth-forgot-pw').style.display = isLoginMode ? 'block' : 'none';
-        document.getElementById('auth-verification-msg').style.display = 'none';
-    });
+    function syncAuthMode() {
+        const nameGroup = document.getElementById('auth-name-group');
+        const handleGroup = document.getElementById('auth-handle-group');
+        const termsGroup = document.getElementById('auth-terms-group');
+        const forgotLink = document.getElementById('auth-forgot-pw');
+        const verificationMsg = document.getElementById('auth-verification-msg');
+        const submitButton = document.getElementById('btn-auth-submit');
+
+        if (authModeText) authModeText.textContent = isLoginMode ? "Bon retour" : "Créer un compte";
+        if (authToggle) authToggle.textContent = isLoginMode ? "Créer un nouveau compte" : "J'ai déjà un compte";
+        if (submitButton) submitButton.textContent = isLoginMode ? "Se connecter" : "Créer le compte";
+        if (nameGroup) nameGroup.style.display = isLoginMode ? 'none' : 'block';
+        if (handleGroup) handleGroup.style.display = isLoginMode ? 'none' : 'block';
+        if (termsGroup) termsGroup.style.display = isLoginMode ? 'none' : 'block';
+        if (forgotLink) forgotLink.style.display = isLoginMode ? 'block' : 'none';
+        if (verificationMsg) verificationMsg.style.display = 'none';
+    }
+
+    if (authToggle) {
+        authToggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            isLoginMode = !isLoginMode;
+            syncAuthMode();
+        });
+    }
+    syncAuthMode();
 
     // Auth Submission (Email & Password via custom API)
     authForm.addEventListener('submit', async (e) => {
@@ -444,6 +582,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    async function completeSocialLogin(provider, firebaseUser) {
+        const res = await fetch(`${API_URL}/auth/social`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider,
+                name: firebaseUser.displayName,
+                email: firebaseUser.email,
+                avatar_url: firebaseUser.photoURL
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Connexion sociale impossible");
+        saveSession(data);
+    }
+
     // Google Login
     const btnGoogleLogin = document.getElementById('btn-google-login');
     if (btnGoogleLogin) {
@@ -452,7 +606,8 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const provider = new window.fbAuthMethods.GoogleAuthProvider();
                 const result = await window.fbAuthMethods.signInWithPopup(window.firebaseAuth, provider);
-                const user = result.user;
+                await completeSocialLogin('google', result.user);
+                return;
                 
                 // Enregistrement auto dans Turso
                 await fetch(`${API_URL}/auth/register`, {
@@ -470,6 +625,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 authModal.style.display = 'none';
             } catch(e) {
                 alert("Erreur Google: " + e.message);
+            }
+        });
+    }
+
+    const btnAppleLogin = document.getElementById('btn-apple-login');
+    if (btnAppleLogin) {
+        btnAppleLogin.addEventListener('click', async () => {
+            if(!window.firebaseAuth || !window.fbAuthMethods) return alert("Firebase non configure.");
+            try {
+                const provider = new window.fbAuthMethods.OAuthProvider('apple.com');
+                provider.addScope('email');
+                provider.addScope('name');
+                const result = await window.fbAuthMethods.signInWithPopup(window.firebaseAuth, provider);
+                await completeSocialLogin('apple', result.user);
+            } catch(e) {
+                alert("Erreur Apple: " + e.message);
             }
         });
     }
@@ -576,8 +747,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="post" style="display:flex; align-items:center; gap:16px; cursor:pointer;" onclick="navigateTo('home')">
                     <span style="font-size:20px; font-weight:700; color:var(--text-secondary); min-width:28px;">${i+1}</span>
                     <div>
-                        <p style="font-weight:600; font-size:16px;">${t.topic}</p>
-                        <p style="font-size:13px; color:var(--text-secondary);">${t.count}</p>
+                        <p style="font-weight:600; font-size:16px;">${escapeHtml(t.topic)}</p>
+                        <p style="font-size:13px; color:var(--text-secondary);">${escapeHtml(t.count)}</p>
                     </div>
                     <i class="ph ph-trend-up" style="margin-left:auto; font-size:20px; color:var(--text-secondary);"></i>
                 </div>
@@ -619,11 +790,17 @@ document.addEventListener('DOMContentLoaded', () => {
             container.innerHTML = `<div class="feed" style="padding:24px; display:flex; flex-direction:column; gap:12px;">
                 ${data.map(n => {
                     const isLike = n.type === 'like';
-                    const icon = isLike ? 'ph-fill ph-heart' : 'ph-fill ph-user-plus';
+                    const isComment = n.type === 'comment';
+                    const icon = isLike ? 'ph-fill ph-heart' : (isComment ? 'ph-fill ph-chat-circle' : 'ph-fill ph-user-plus');
                     const iconColor = isLike ? '#ff4757' : 'var(--accent-color)';
-                    const text = isLike
+                    const actorName = escapeHtml(n.actor_name);
+                    const actorHandle = encodeURIComponent(n.actor_handle || '');
+                    let text = isLike
                         ? `<strong>${n.actor_name}</strong> a aimé votre Angle sur <span class="prisme-tag">"${(n.angle_content || '').substring(0, 40)}..."</span>`
                         : `<strong>${n.actor_name}</strong> a commencé à vous suivre`;
+                    if (isComment) {
+                        text = `<strong>${escapeHtml(n.actor_name)}</strong> a commente votre Angle : <span class="prisme-tag">"${escapeHtml((n.comment_content || '').substring(0, 40))}..."</span>`;
+                    }
                     return `
                         <div class="post" style="display:flex; align-items:center; gap:16px; cursor:pointer;" onclick="navigateTo('profile', 'user=${n.actor_handle}')">
                             <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=${n.actor_handle}');flex-shrink:0;"></div>
@@ -728,9 +905,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         profileFeed.innerHTML = angles.map(post => `
                             <article class="post">
-                                <p class="post-content">${post.content}</p>
+                                <p class="post-content">${escapeHtml(post.content)}</p>
+                                ${post.media_url ? `<div style="margin-top:12px; border-radius:12px; overflow:hidden; border:1px solid var(--border-color);"><img src="${post.media_url}" style="width:100%; display:block;" alt="Media attache"></div>` : ''}
                                 <div style="display:flex; align-items:center; justify-content:space-between; margin-top:12px;">
-                                    <span class="prisme-tag">${post.prisme ? '#' + post.prisme : ''}</span>
+                                    <span class="prisme-tag">${post.prisme ? '#' + escapeHtml(post.prisme) : ''}</span>
                                     <span style="font-size:13px; color:var(--text-secondary);">
                                         <i class="ph-fill ph-heart" style="color:#ff4757;"></i> ${post.likes} · ${new Date(post.created_at).toLocaleDateString('fr-FR')}
                                     </span>
@@ -928,7 +1106,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Connect Socket.io
         if (typeof io !== 'undefined') {
-            socket = io('http://localhost:3000');
+            socket = io(BACKEND_ORIGIN);
             socket.on('connect', () => {
                 socket.emit('register', state.user.id);
             });
@@ -1032,7 +1210,7 @@ document.addEventListener('DOMContentLoaded', () => {
             div.style.cssText = isFromMe 
                 ? 'align-self:flex-end;max-width:70%;background:var(--accent-color);color:#000;padding:12px 16px;border-radius:16px 16px 4px 16px;'
                 : 'align-self:flex-start;max-width:70%;background:var(--panel-bg);border:1px solid var(--border-color);padding:12px 16px;border-radius:16px 16px 16px 4px; color:var(--text-primary);';
-            div.innerHTML = `<p style="font-size:14px; margin:0;">${msg.content}</p>`;
+            div.innerHTML = `<p style="font-size:14px; margin:0;">${escapeHtml(msg.content)}</p>`;
             container.appendChild(div);
         }
 

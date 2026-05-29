@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import path from "path";
+import { fileURLToPath } from "url";
 import client, { initDb } from "./db.js";
 import jwt from "jsonwebtoken";
 
@@ -12,6 +14,9 @@ import notificationsRoutes from "./routes/notifications.js";
 
 const app = express();
 const httpServer = createServer(app);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const publicRoot = path.resolve(__dirname, "..");
 const io = new Server(httpServer, {
   cors: {
     origin: "*",
@@ -20,18 +25,23 @@ const io = new Server(httpServer, {
 });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "6mb" }));
+app.use("/css", express.static(path.join(publicRoot, "css")));
+app.use("/js", express.static(path.join(publicRoot, "js")));
 
 const PORT = process.env.PORT || 3000;
-
-// Initialize DB
-initDb().catch(console.error);
 
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/angles", anglesRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/notifications", notificationsRoutes);
+
+app.get("/favicon.ico", (req, res) => res.status(204).end());
+app.get(["/", "/index.html", "/trending.html", "/notifications.html", "/profile.html", "/messages.html", "/verify.html", "/reset-password.html"], (req, res) => {
+  const requestedFile = req.path === "/" ? "index.html" : req.path.slice(1);
+  res.sendFile(path.join(publicRoot, requestedFile));
+});
 
 // Trending — calculé depuis la vraie BDD
 app.get("/api/trending", async (req, res) => {
@@ -78,8 +88,8 @@ app.get("/api/messages/:receiverHandle", async (req, res) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) return res.status(401).json({ error: "Unauthorized" });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback_secret");
-    const senderId = decoded.userId;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "super_secret_prisme_key");
+    const senderId = decoded.id;
 
     const receiverRes = await client.execute({
       sql: "SELECT id FROM users WHERE handle = ?",
@@ -108,8 +118,8 @@ app.get("/api/conversations", async (req, res) => {
   try {
     const token = req.headers.authorization?.split(" ")[1];
     if (!token) return res.status(401).json({ error: "Unauthorized" });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback_secret");
-    const userId = decoded.userId;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "super_secret_prisme_key");
+    const userId = decoded.id;
 
     // A simple query to get users you have exchanged messages with
     const result = await client.execute({
@@ -166,6 +176,12 @@ io.on("connection", (socket) => {
   });
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`Prisme Backend running on http://localhost:${PORT}`);
-});
+try {
+  await initDb();
+  httpServer.listen(PORT, () => {
+    console.log(`Prisme Backend running on http://localhost:${PORT}`);
+  });
+} catch (error) {
+  console.error("Failed to initialize database:", error);
+  process.exit(1);
+}

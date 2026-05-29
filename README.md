@@ -1,65 +1,62 @@
 # Prisme - Social Media Platform
 
-![Prisme Banner](https://img.shields.io/badge/Status-Completed-success?style=for-the-badge) ![Fullstack](https://img.shields.io/badge/Stack-Fullstack-blue?style=for-the-badge) ![Prodigy InfoTech](https://img.shields.io/badge/ProdigyInfoTech-Task_05-orange?style=for-the-badge)
+Prisme est une plateforme sociale full-stack construite pour la Task 05 du programme Full-Stack Web Development de Prodigy InfoTech. L'application permet aux utilisateurs de partager des publications appelées Angles, de les organiser par Prismes, d'interagir avec la communauté et de gérer un profil personnalisé.
 
-**Prisme** est une plateforme sociale moderne, fluide et épurée, conçue pour réinventer la manière dont nous partageons nos perspectives (les **Angles**) à travers des sujets d'intérêt spécifiques (les **Prismes**).
+## Fonctionnalites
 
-Ce projet a été développé en tant que **Task 05** (Projet Final) dans le cadre du stage Full-Stack Developer chez **Prodigy InfoTech**.
+- Authentification par e-mail et mot de passe avec JWT.
+- Inscription avec verification d'e-mail lorsque le service mail est configure.
+- Connexion sociale Google et Apple cote interface, avec synchronisation serveur via une route sociale dediee.
+- Creation de publications avec texte, categorie et image integree.
+- Fil d'actualite dynamique avec likes, commentaires et suppression de ses propres publications.
+- Page profil avec avatar, couverture, bio, statistiques et affichage des publications avec leurs images.
+- Systeme de follow entre utilisateurs.
+- Notifications pour les likes, les nouveaux commentaires et les nouveaux abonnes.
+- Messagerie en temps reel avec Socket.IO.
+- Pages dediees pour l'accueil, les tendances, les notifications, le profil et les messages.
+- Interface responsive en HTML, CSS et JavaScript vanilla.
 
-## 🌟 Fonctionnalités Principales
+## Stack Technique
 
-*   **Authentification Sécurisée** : Inscription avec vérification d'email (via Resend) et connexion par JWT.
-*   **Les Angles (Publications)** : Partagez vos pensées avec prise en charge du texte et de l'upload de médias (Images/Vidéos). Possibilité de supprimer ses propres Angles.
-*   **Les Prismes (Catégories)** : Triez et découvrez le contenu par centres d'intérêt spécifiques (ex: #Tech, #Art, #Design).
-*   **Profils Utilisateurs** : Page de profil personnalisable (Photo de profil générée dynamiquement, Biographie modifiable en temps réel, nombre d'abonnés et d'abonnements).
-*   **Interactions Sociales** : Système de likes et section "Tendances / Suggestions".
-*   **Design Premium "Liquid Glass"** : Une interface utilisateur immersive, moderne (thème sombre), avec des animations fluides et un design 100% responsive conçu en Vanilla CSS.
+- Frontend: HTML5, CSS3, JavaScript ES6.
+- Backend: Node.js, Express.js.
+- Base de donnees: Turso / LibSQL.
+- Authentification: JSON Web Tokens, bcryptjs.
+- Temps reel: Socket.IO.
+- E-mails: Nodemailer.
 
-## 🛠️ Stack Technique
+## Installation
 
-*   **Frontend** : HTML5, CSS3 (Custom Properties, Flexbox/Grid, Animations), JavaScript (Vanilla ES6+). SPA (Single Page Application) architecturée sans framework lourd.
-*   **Backend** : Node.js, Express.js.
-*   **Base de Données** : SQLite via **Turso** (LibSQL) pour des performances Edge ultra-rapides.
-*   **Sécurité & Services** : JWT (JSON Web Tokens) pour les sessions, Resend pour l'envoi d'emails.
+1. Installer les dependances:
 
-## 🚀 Installation & Exécution
+```bash
+npm install
+```
 
-### Prérequis
-*   Node.js (v16+)
-*   Une base de données Turso ou SQLite locale
-*   Un compte Resend pour l'envoi d'emails (Optionnel pour le dev local)
+2. Creer un fichier `.env` a la racine:
 
-### Démarrage Rapide
+```env
+PORT=3000
+APP_URL=http://localhost:5501
+JWT_SECRET=une_cle_secrete
+TURSO_DATABASE_URL=votre_url_turso
+TURSO_AUTH_TOKEN=votre_token_turso
+MAIL_USER=votre_adresse_gmail
+MAIL_PASS=votre_mot_de_passe_application
+```
 
-1. **Cloner le dépôt**
-   ```bash
-   git clone https://github.com/Ehui-Junior-Christ/PRODIGY_FS_05.git
-   cd PRODIGY_FS_05
-   ```
+3. Lancer le serveur:
 
-2. **Installer les dépendances du serveur**
-   ```bash
-   npm install
-   ```
+```bash
+node server/index.js
+```
 
-3. **Configurer les variables d'environnement**
-   Créez un fichier `.env` à la racine :
-   ```env
-   PORT=3000
-   TURSO_DATABASE_URL=votre_url_turso
-   TURSO_AUTH_TOKEN=votre_token_turso
-   JWT_SECRET=une_cle_secrete_tres_complexe
-   RESEND_API_KEY=votre_cle_resend
-   APP_URL=http://localhost:5501
-   ```
+4. Ouvrir le frontend avec Live Server ou un serveur statique sur `http://localhost:5501`.
 
-4. **Lancer le backend**
-   ```bash
-   node server/index.js
-   ```
+## Description Marketing
 
-5. **Lancer le frontend**
-   Ouvrez le dossier avec l'extension "Live Server" sur VS Code (port par défaut 5501) ou servez les fichiers statiques.
+Prisme transforme le reseau social classique en un espace d'expression organise autour des perspectives. Les utilisateurs publient des Angles, explorent des sujets via des Prismes, echangent en commentaires, suivent des profils et recoivent des notifications en temps reel sur les interactions importantes. Le projet met l'accent sur une experience claire, moderne et communautaire, ideale pour partager des idees, construire une audience et decouvrir des conversations pertinentes.
 
-## 👨‍💻 Auteur
-Développé par **Ehui Junior Christ** dans le cadre du programme de stage Full-Stack Developer chez Prodigy InfoTech.
+## Auteur
+
+Developpe par Ehui Junior Christ dans le cadre de la derniere tache du stage Full-Stack Web Development chez Prodigy InfoTech.

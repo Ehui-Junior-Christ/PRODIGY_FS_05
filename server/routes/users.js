@@ -108,9 +108,10 @@ router.get("/:handle/angles", async (req, res) => {
     const userId = userRes.rows[0].id;
 
     const result = await client.execute({
-      sql: `SELECT a.id, a.content, a.created_at, u.name as author, u.handle as author_handle,
+      sql: `SELECT a.id, a.content, a.media_url, a.created_at, u.name as author, u.handle as author_handle,
              p.name as prisme,
-             (SELECT COUNT(*) FROM likes WHERE angle_id = a.id) as likes
+             (SELECT COUNT(*) FROM likes WHERE angle_id = a.id) as likes,
+             (SELECT COUNT(*) FROM comments WHERE angle_id = a.id) as comments
              FROM angles a
              JOIN users u ON a.author_id = u.id
              LEFT JOIN prismes p ON a.prisme_id = p.id

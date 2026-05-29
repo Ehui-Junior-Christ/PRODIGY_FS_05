@@ -78,7 +78,34 @@ export const initDb = async () => {
       FOREIGN KEY (sender_id) REFERENCES users (id),
       FOREIGN KEY (receiver_id) REFERENCES users (id)
     );
+
+    CREATE TABLE IF NOT EXISTS comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      angle_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (angle_id) REFERENCES angles (id),
+      FOREIGN KEY (user_id) REFERENCES users (id)
+    );
   `);
+
+  const migrations = [
+    "ALTER TABLE users ADD COLUMN avatar_url TEXT",
+    "ALTER TABLE users ADD COLUMN cover_url TEXT",
+    "ALTER TABLE users ADD COLUMN bio TEXT",
+    "ALTER TABLE angles ADD COLUMN media_url TEXT"
+  ];
+
+  for (const sql of migrations) {
+    try {
+      await client.execute(sql);
+    } catch (error) {
+      if (!String(error.message || error).toLowerCase().includes("duplicate column")) {
+        throw error;
+      }
+    }
+  }
   console.log("Database initialized");
 };
 
