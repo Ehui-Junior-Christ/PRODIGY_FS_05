@@ -500,29 +500,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function navigateTo(viewName) {
         if (!views[viewName]) return;
+        if (views[currentView]?.el) views[currentView].el.style.display = 'none';
 
-        // Masquer la vue courante
-        if (views[currentView]?.el) {
-            views[currentView].el.style.display = 'none';
-        }
-
-        // Afficher la nouvelle vue
-        views[viewName].el.style.display = 'block';
+        const displayMode = viewName === 'messages' ? 'flex' : 'block';
+        views[viewName].el.style.display = displayMode;
         topbarTitle.textContent = views[viewName].title;
         currentView = viewName;
 
-        // Mettre à jour les liens actifs dans la sidebar
         document.querySelectorAll('.nav-links li').forEach(li => {
             li.classList.toggle('active', li.dataset.view === viewName);
         });
 
-        // Actions spécifiques à la vue
-        if (viewName === 'trending') renderTrendingFull();
-        if (viewName === 'profile') renderProfile();
-        if (viewName === 'messages') views.messages.el.style.display = 'flex';
+        if (viewName === 'trending')      fetchAndRenderTrending();
+        if (viewName === 'notifications') fetchAndRenderNotifications();
+        if (viewName === 'profile')       fetchAndRenderProfile();
     }
 
-    // Attacher les clics de navigation
     document.querySelectorAll('.nav-links li').forEach(li => {
         li.addEventListener('click', () => {
             const target = li.dataset.view;
@@ -530,54 +523,144 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Remplir la page Tendances
-    function renderTrendingFull() {
+    // ── Tendances (depuis la BDD) ──────────────────────────────────────
+    async function fetchAndRenderTrending() {
         const list = document.getElementById('trending-full-list');
-        if (!list || !state.trending.length) return;
-        list.innerHTML = state.trending.map((t, i) => `
-            <div class="post" style="display:flex; align-items:center; gap:16px; cursor:pointer;">
-                <span style="font-size:20px; font-weight:700; color:var(--text-secondary); width:28px;">${i+1}</span>
-                <div>
-                    <p style="font-weight:600; font-size:16px;">${t.topic}</p>
-                    <p style="font-size:13px; color:var(--text-secondary);">${t.count}</p>
+        if (!list) return;
+        list.innerHTML = '<p style="color:var(--text-secondary); padding:16px;">Chargement...</p>';
+        try {
+            const res = await fetch(`${API_URL}/trending`);
+            const data = await res.json();
+            state.trending = data;
+            if (data.length === 0) {
+                list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:24px;">Aucun sujet pour le moment.</p>';
+                return;
+            }
+            list.innerHTML = data.map((t, i) => `
+                <div class="post" style="display:flex; align-items:center; gap:16px; cursor:pointer;" onclick="navigateTo('home')">
+                    <span style="font-size:20px; font-weight:700; color:var(--text-secondary); min-width:28px;">${i+1}</span>
+                    <div>
+                        <p style="font-weight:600; font-size:16px;">${t.topic}</p>
+                        <p style="font-size:13px; color:var(--text-secondary);">${t.count}</p>
+                    </div>
+                    <i class="ph ph-trend-up" style="margin-left:auto; font-size:20px; color:var(--text-secondary);"></i>
                 </div>
-                <i class="ph ph-trend-up" style="margin-left:auto; font-size:20px; color:var(--text-secondary);"></i>
-            </div>
-        `).join('');
+            `).join('');
+        } catch (e) {
+            list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:24px;">Erreur de chargement.</p>';
+        }
     }
 
-    // Remplir la page Profil avec les données de l'utilisateur connecté
-    function renderProfile() {
-        if (!state.user) return;
+    // ── Notifications (depuis la BDD) ──────────────────────────────────
+    async function fetchAndRenderNotifications() {
+        const container = document.getElementById('view-notifications');
+        if (!container || !state.token) {
+            if (container) container.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:48px;">Connectez-vous pour voir vos notifications.</p>';
+            return;
+        }
+        container.innerHTML = '<p style="color:var(--text-secondary); padding:24px;">Chargement...</p>';
+        try {
+            const res = await fetch(`${API_URL}/notifications`, {
+                headers: { 'Authorization': `Bearer ${state.token}` }
+            });
+            const data = await res.json();
+
+            if (!Array.isArray(data) || data.length === 0) {
+                container.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:48px;">Aucune notification pour le moment.</p>';
+                return;
+            }
+
+            const timeAgo = (dateStr) => {
+                const diff = Date.now() - new Date(dateStr).getTime();
+                const min = Math.floor(diff / 60000);
+                if (min < 1) return 'À l\'instant';
+                if (min < 60) return `Il y a ${min} min`;
+                const h = Math.floor(min / 60);
+                if (h < 24) return `Il y a ${h}h`;
+                return `Il y a ${Math.floor(h / 24)} jour(s)`;
+            };
+
+            container.innerHTML = `<div class="feed" style="padding:24px; display:flex; flex-direction:column; gap:12px;">
+                ${data.map(n => {
+                    const isLike = n.type === 'like';
+                    const icon = isLike ? 'ph-fill ph-heart' : 'ph-fill ph-user-plus';
+                    const iconColor = isLike ? '#ff4757' : 'var(--accent-color)';
+                    const text = isLike
+                        ? `<strong>${n.actor_name}</strong> a aimé votre Angle sur <span class="prisme-tag">"${(n.angle_content || '').substring(0, 40)}..."</span>`
+                        : `<strong>${n.actor_name}</strong> a commencé à vous suivre`;
+                    return `
+                        <div class="post" style="display:flex; align-items:center; gap:16px;">
+                            <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=${n.actor_handle}');flex-shrink:0;"></div>
+                            <div style="flex:1;">${text}<p style="font-size:12px; color:var(--text-secondary); margin-top:4px;">${timeAgo(n.created_at)}</p></div>
+                            <i class="${icon}" style="font-size:22px; color:${iconColor}; flex-shrink:0;"></i>
+                        </div>
+                    `;
+                }).join('')}
+            </div>`;
+        } catch (e) {
+            container.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:48px;">Erreur de chargement.</p>';
+        }
+    }
+
+    // ── Profil (depuis la BDD) ─────────────────────────────────────────
+    async function fetchAndRenderProfile() {
+        if (!state.user || !state.token) return;
+
+        // Mettre à jour les infos de base immédiatement
         const nameEl = document.getElementById('profile-name');
         const handleEl = document.getElementById('profile-handle');
         const avatarEl = document.getElementById('profile-avatar');
-        if (nameEl) nameEl.textContent = state.user.name || 'Mon Profil';
-        if (handleEl) handleEl.textContent = '@' + (state.user.handle || state.user.name?.toLowerCase().replace(' ', '_') || 'utilisateur');
-        if (avatarEl) avatarEl.style.backgroundImage = `url('https://api.dicebear.com/7.x/avataaars/svg?seed=${state.user.name || 'user'}')`;
 
-        // Afficher les posts de l'utilisateur
-        const myPosts = state.posts.filter(p => p.author === state.user.name || p.author === state.user.email);
-        const profileFeed = document.getElementById('profile-feed');
-        const anglesCount = document.getElementById('profile-angles');
-        if (anglesCount) anglesCount.textContent = myPosts.length;
-        if (profileFeed) {
-            if (myPosts.length === 0) {
-                profileFeed.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:24px;">Aucun Angle publié pour le moment.</p>';
-            } else {
-                profileFeed.innerHTML = myPosts.map(post => `
-                    <article class="post">
-                        <p class="post-content">${post.content}</p>
-                        <div class="post-tags">${(post.tags || []).map(tag => `<span class="tag">#${tag}</span>`).join('')}</div>
-                        <p style="font-size:13px; color:var(--text-secondary); margin-top:8px;">${new Date(post.created_at).toLocaleDateString()}</p>
-                    </article>
-                `).join('');
+        try {
+            // Charger les données complètes depuis le backend
+            const res = await fetch(`${API_URL}/users/me`, {
+                headers: { 'Authorization': `Bearer ${state.token}` }
+            });
+            if (res.ok) {
+                const user = await res.json();
+                if (nameEl) nameEl.textContent = user.name;
+                if (handleEl) handleEl.textContent = '@' + user.handle;
+                if (avatarEl) avatarEl.style.backgroundImage = `url('https://api.dicebear.com/7.x/avataaars/svg?seed=${user.handle}')`;
+
+                document.getElementById('profile-angles').textContent = user.angles_count || 0;
+                document.getElementById('profile-followers').textContent = user.followers_count || 0;
+                document.getElementById('profile-following').textContent = user.following_count || 0;
+
+                // Charger ses angles
+                const anglesRes = await fetch(`${API_URL}/users/${user.handle}/angles`);
+                const angles = await anglesRes.json();
+                const profileFeed = document.getElementById('profile-feed');
+                if (profileFeed) {
+                    if (!Array.isArray(angles) || angles.length === 0) {
+                        profileFeed.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:24px;">Aucun Angle publié pour le moment.</p>';
+                    } else {
+                        profileFeed.innerHTML = angles.map(post => `
+                            <article class="post">
+                                <p class="post-content">${post.content}</p>
+                                <div style="display:flex; align-items:center; justify-content:space-between; margin-top:12px;">
+                                    <span class="prisme-tag">${post.prisme ? '#' + post.prisme : ''}</span>
+                                    <span style="font-size:13px; color:var(--text-secondary);">
+                                        <i class="ph-fill ph-heart" style="color:#ff4757;"></i> ${post.likes} · ${new Date(post.created_at).toLocaleDateString('fr-FR')}
+                                    </span>
+                                </div>
+                            </article>
+                        `).join('');
+                    }
+                }
             }
+        } catch (e) {
+            console.error('Erreur chargement profil', e);
         }
     }
+
+    // Rendre navigateTo accessible globalement (pour les onclick inline)
+    window.navigateTo = navigateTo;
 
     // Initial render
     updateAuthUI();
     fetchPosts();
     fetchSidebar();
 });
+
+
+
