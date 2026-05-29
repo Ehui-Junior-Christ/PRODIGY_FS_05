@@ -123,11 +123,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         feedContainer.innerHTML = state.posts.map(post => `
             <article class="post" data-id="${post.id}">
-                <header class="post-header">
-                    <div class="avatar" style="background-image: url('https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author}')"></div>
+                <header class="post-header" style="cursor:pointer;" onclick="navigateTo('profile', 'user=${post.author_handle}')">
+                    <div class="avatar" style="background-image: url('https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author_handle}')"></div>
                     <div class="post-meta">
-                        <h3>${post.author} <span class="prisme-tag">dans #${post.prisme}</span></h3>
-                        <p>${new Date(post.created_at).toLocaleDateString()}</p>
+                        <h3>${post.author} <span style="font-weight:normal; font-size:13px; color:var(--text-secondary);">@${post.author_handle}</span> <span class="prisme-tag">dans #${post.prisme}</span></h3>
+                        <p>${post.created_at ? new Date(post.created_at).toLocaleDateString() : ''}</p>
                     </div>
                 </header>
                 <p class="post-content">${post.content}</p>
@@ -399,9 +399,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const topbarTitle = document.getElementById('topbar-title');
     let currentView = 'home';
 
-    function navigateTo(viewName) {
-        if (viewName === 'home') window.location.href = 'index.html';
-        else window.location.href = `${viewName}.html`;
+    function navigateTo(viewName, params = '') {
+        const qs = params ? `?${params}` : '';
+        if (viewName === 'home') window.location.href = 'index.html' + qs;
+        else window.location.href = `${viewName}.html${qs}`;
     }
 
     document.querySelectorAll('.nav-links li').forEach(li => {
@@ -507,7 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         ? `<strong>${n.actor_name}</strong> a aimé votre Angle sur <span class="prisme-tag">"${(n.angle_content || '').substring(0, 40)}..."</span>`
                         : `<strong>${n.actor_name}</strong> a commencé à vous suivre`;
                     return `
-                        <div class="post" style="display:flex; align-items:center; gap:16px;">
+                        <div class="post" style="display:flex; align-items:center; gap:16px; cursor:pointer;" onclick="navigateTo('profile', 'user=${n.actor_handle}')">
                             <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=${n.actor_handle}');flex-shrink:0;"></div>
                             <div style="flex:1;">${text}<p style="font-size:12px; color:var(--text-secondary); margin-top:4px;">${timeAgo(n.created_at)}</p></div>
                             <i class="${icon}" style="font-size:22px; color:${iconColor}; flex-shrink:0;"></i>
@@ -523,21 +524,31 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── Profil (depuis la BDD) ─────────────────────────────────────────
     async function fetchAndRenderProfile() {
         const profileView = document.getElementById('view-profile');
-        if (!state.user || !state.token) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetHandle = urlParams.get('user');
+
+        if (!targetHandle && (!state.user || !state.token)) {
             if(profileView) profileView.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:48px;">Connectez-vous pour voir votre profil.</p>';
             return;
         }
 
-        // Mettre à jour les infos de base immédiatement
         const nameEl = document.getElementById('profile-name');
         const handleEl = document.getElementById('profile-handle');
         const avatarEl = document.getElementById('profile-avatar');
+        const btnEditProfile = document.getElementById('btn-edit-profile');
+        const btnFollowProfile = document.getElementById('btn-follow-profile');
 
         try {
-            // Charger les données complètes depuis le backend
-            const res = await fetch(`${API_URL}/users/me`, {
-                headers: { 'Authorization': `Bearer ${state.token}` }
-            });
+            let res;
+            let headers = {};
+            if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+
+            if (targetHandle) {
+                res = await fetch(`${API_URL}/users/${targetHandle}`, { headers });
+            } else {
+                res = await fetch(`${API_URL}/users/me`, { headers });
+            }
+
             if (res.ok) {
                 const user = await res.json();
                 if (nameEl) nameEl.textContent = user.name;
@@ -547,6 +558,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('profile-angles').textContent = user.angles_count || 0;
                 document.getElementById('profile-followers').textContent = user.followers_count || 0;
                 document.getElementById('profile-following').textContent = user.following_count || 0;
+
+                // Handle Buttons
+                const isOwnProfile = state.user && state.user.handle === user.handle;
+                if (btnEditProfile) btnEditProfile.style.display = isOwnProfile ? 'block' : 'none';
+                if (btnFollowProfile) {
+                    if (isOwnProfile || !state.token) {
+                        btnFollowProfile.style.display = 'none';
+                    } else {
+                        btnFollowProfile.style.display = 'block';
+                        btnFollowProfile.textContent = user.isFollowing ? 'Abonné' : 'Suivre';
+                        btnFollowProfile.className = user.isFollowing ? 'btn-secondary' : 'btn-primary';
+                        
+                        // Prevent multiple listeners
+                        const newBtn = btnFollowProfile.cloneNode(true);
+                        btnFollowProfile.parentNode.replaceChild(newBtn, btnFollowProfile);
+                        
+                        newBtn.addEventListener('click', async () => {
+                            const followRes = await fetch(`${API_URL}/users/${user.id}/follow`, {
+                                method: 'POST',
+                                headers: { 'Authorization': `Bearer ${state.token}` }
+                            });
+                            if (followRes.ok) {
+                                const followData = await followRes.json();
+                                newBtn.textContent = followData.following ? 'Abonné' : 'Suivre';
+                                newBtn.className = followData.following ? 'btn-secondary' : 'btn-primary';
+                                
+                                // Update count dynamically
+                                const followersEl = document.getElementById('profile-followers');
+                                let currentCount = parseInt(followersEl.textContent) || 0;
+                                followersEl.textContent = followData.following ? currentCount + 1 : Math.max(0, currentCount - 1);
+                            }
+                        });
+                    }
+                }
 
                 // Charger ses angles
                 const anglesRes = await fetch(`${API_URL}/users/${user.handle}/angles`);

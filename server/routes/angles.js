@@ -24,7 +24,7 @@ router.get("/", async (req, res) => {
     }
 
     const result = await client.execute(`
-      SELECT a.id, a.content, a.media_url, a.created_at, u.name as author, p.name as prisme,
+      SELECT a.id, a.content, a.media_url, a.created_at, u.name as author, u.handle as author_handle, p.name as prisme,
              (SELECT COUNT(*) FROM likes WHERE angle_id = a.id) as likes,
              0 as comments
       FROM angles a JOIN users u ON a.author_id = u.id
@@ -37,7 +37,7 @@ router.get("/", async (req, res) => {
         const likeCheck = await client.execute({ sql: "SELECT 1 FROM likes WHERE user_id = ? AND angle_id = ?", args: [userId, row.id] });
         isLiked = likeCheck.rows.length > 0;
       }
-      return { id: row.id, author: row.author, prisme: row.prisme, content: row.content, media_url: row.media_url, likes: row.likes, isLiked };
+      return { id: row.id, author: row.author, author_handle: row.author_handle, prisme: row.prisme, content: row.content, media_url: row.media_url, likes: row.likes, isLiked, created_at: row.created_at };
     }));
     res.json(posts);
   } catch (error) { res.status(500).json({ error: "Erreur serveur" }); }
