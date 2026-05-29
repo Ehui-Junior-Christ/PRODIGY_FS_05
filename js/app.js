@@ -714,11 +714,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (avatarPreview) avatarPreview.style.backgroundImage = currentEditAvatar ? `url(${currentEditAvatar})` : `url('https://api.dicebear.com/7.x/avataaars/svg?seed=${state.user.handle}')`;
             if (coverPreview) coverPreview.style.backgroundImage = currentEditCover ? `url(${currentEditCover})` : `linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)`;
 
-            editProfileModal.style.display = 'flex';
+            editProfileModal.classList.add('active');
         });
     }
 
-    const closeEditModal = () => editProfileModal.style.display = 'none';
+    const closeEditModal = () => editProfileModal.classList.remove('active');
     if (closeEditProfileModal) closeEditProfileModal.addEventListener('click', closeEditModal);
     if (cancelEditProfile) cancelEditProfile.addEventListener('click', closeEditModal);
 
