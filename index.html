@@ -95,7 +95,9 @@
         <div id="view-trending" class="view" style="display:none;">
             <div class="feed" style="padding: 24px;">
                 <div class="panel-section" style="margin-bottom:0;">
-                    <h2 style="font-size:22px; margin-bottom:24px;">🔥 Sujets du moment</h2>
+                    <h2 style="font-size:22px; margin-bottom:24px; display:flex; align-items:center; gap:8px;">
+                        <i class="ph-fill ph-fire" style="color:#ff6b6b;"></i> Sujets du moment
+                    </h2>
                     <div style="display:flex; flex-direction:column; gap:16px;" id="trending-full-list">
                         <!-- rempli dynamiquement -->
                     </div>
@@ -143,7 +145,7 @@
                         <div id="profile-avatar" style="width:80px;height:80px;border-radius:50%;border:3px solid var(--bg-color);background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=user');background-size:cover;margin-top:-40px;"></div>
                         <h2 id="profile-name" style="margin-top:12px; font-size:20px;">Mon Profil</h2>
                         <p id="profile-handle" style="color:var(--text-secondary); font-size:14px;">@utilisateur</p>
-                        <p style="color:var(--text-secondary); font-size:14px; margin-top:8px;">Bienvenue sur Prisme ✨</p>
+                        <p style="color:var(--text-secondary); font-size:14px; margin-top:8px;">Bienvenue sur Prisme <i class="ph-fill ph-sparkle" style="color:var(--accent-color);"></i></p>
                         <div style="display:flex; gap:24px; margin-top:16px;">
                             <div><strong id="profile-angles">0</strong> <span style="color:var(--text-secondary); font-size:14px;">Angles</span></div>
                             <div><strong id="profile-followers">0</strong> <span style="color:var(--text-secondary); font-size:14px;">Abonnés</span></div>
