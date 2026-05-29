@@ -8,6 +8,29 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+      import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+      import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
+
+      // ⚠️ REMPLACER CECI PAR VOTRE VRAIE CONFIGURATION FIREBASE PLUS TARD
+      const firebaseConfig = {
+        apiKey: "VOTRE_API_KEY",
+        authDomain: "VOTRE_PROJET.firebaseapp.com",
+        projectId: "VOTRE_PROJET_ID",
+        storageBucket: "VOTRE_PROJET.appspot.com",
+        messagingSenderId: "SENDER_ID",
+        appId: "APP_ID"
+      };
+
+      // Exposer Firebase globalement pour app.js
+      window.firebaseApp = initializeApp(firebaseConfig);
+      window.firebaseAuth = getAuth(window.firebaseApp);
+      window.firebaseStorage = getStorage(window.firebaseApp);
+      window.fbAuthMethods = { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut };
+    </script>
 </head>
 <body>
     <nav class="sidebar">
@@ -144,6 +167,10 @@
                 <div style="display:flex; gap: 8px; margin-bottom: 16px;">
                     <button type="button" class="btn-secondary" style="flex:1; font-size:12px;" onclick="alert('Configuration Google API OAuth requise (Backend/Firebase)')">Google</button>
                     <button type="button" class="btn-secondary" style="flex:1; font-size:12px;" onclick="alert('Configuration Apple Developer requise')">Apple</button>
+                </div>
+
+                <div id="auth-verification-msg" style="display:none; color:#ff4757; font-size:13px; text-align:center; margin-bottom:16px;">
+                    Un email de vérification vous a été envoyé. Veuillez cliquer sur le lien pour valider votre compte.
                 </div>
 
                 <a href="#" id="auth-toggle" style="text-align: center; color: var(--text-secondary); text-decoration: none; font-size: 14px;">Pas encore de compte ? S'inscrire</a>
