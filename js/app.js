@@ -144,8 +144,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         <h3>${post.author} <span style="font-weight:normal; font-size:13px; color:var(--text-secondary);">@${post.author_handle}</span> <span class="prisme-tag">dans #${post.prisme}</span></h3>
                         <p>${post.created_at ? new Date(post.created_at).toLocaleDateString() : ''}</p>
                     </div>
-                    ${state.user && state.user.handle === post.author_handle ? 
-                    `<button class="delete-post-btn" onclick="event.stopPropagation(); deletePost(${post.id})" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; padding:8px;"><i class="ph ph-trash" style="font-size:18px;"></i></button>` : ''}
+                    <div class="post-options-container" onclick="event.stopPropagation();">
+                        <button class="options-btn" onclick="togglePostOptions(${post.id})">
+                            <i class="ph ph-dots-three-outline-vertical" style="font-size:20px;"></i>
+                        </button>
+                        <div id="options-menu-${post.id}" class="options-menu">
+                            ${state.user && state.user.handle === post.author_handle ? 
+                            `<button onclick="editPost(${post.id})"><i class="ph ph-pencil-simple" style="font-size:18px;"></i> Modifier</button>
+                             <button onclick="deletePost(${post.id})" style="color: #ff4757;"><i class="ph ph-trash" style="font-size:18px;"></i> Supprimer</button>` 
+                            : ''}
+                            <button onclick="repostAngle(${post.id})"><i class="ph ph-arrows-left-right" style="font-size:18px;"></i> Republier</button>
+                            <button onclick="shareAngle(${post.id})"><i class="ph ph-share-network" style="font-size:18px;"></i> Partager</button>
+                        </div>
+                    </div>
                 </header>
                 <p class="post-content">${post.content}</p>
                 ${post.media_url ? `<div style="margin-top:12px; border-radius:12px; overflow:hidden; border:1px solid var(--border-color);"><img src="${post.media_url}" style="width:100%; display:block;" alt="Media attaché"></div>` : ''}
@@ -233,6 +244,41 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Failed to delete post", e);
         }
     };
+
+    window.togglePostOptions = (id) => {
+        // Close all other menus first
+        document.querySelectorAll('.options-menu.active').forEach(menu => {
+            if (menu.id !== `options-menu-${id}`) {
+                menu.classList.remove('active');
+            }
+        });
+        const menu = document.getElementById(`options-menu-${id}`);
+        if (menu) menu.classList.toggle('active');
+    };
+
+    window.editPost = (id) => {
+        alert("La fonctionnalité 'Modifier' sera bientôt disponible !");
+        window.togglePostOptions(id);
+    };
+
+    window.repostAngle = (id) => {
+        alert("La fonctionnalité 'Republier' sera bientôt disponible !");
+        window.togglePostOptions(id);
+    };
+
+    window.shareAngle = (id) => {
+        alert("La fonctionnalité 'Partager' sera bientôt disponible !");
+        window.togglePostOptions(id);
+    };
+
+    // Close options menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.post-options-container')) {
+            document.querySelectorAll('.options-menu.active').forEach(menu => {
+                menu.classList.remove('active');
+            });
+        }
+    });
 
     let currentPostMedia = null;
 

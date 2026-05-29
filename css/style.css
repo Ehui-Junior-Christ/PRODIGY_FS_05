@@ -510,6 +510,77 @@ body {
     transition: all var(--transition-fast);
 }
 
+
+
+.post-options-container {
+    position: relative;
+}
+
+.options-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.options-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.options-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    min-width: 160px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-10px);
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.options-menu.active {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.options-menu button {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    padding: 10px 16px;
+    text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: inherit;
+    transition: background-color 0.2s;
+}
+
+.options-menu button:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
 .input-field:focus {
     background-color: rgba(255, 255, 255, 0.05);
     border-color: var(--accent-color);
