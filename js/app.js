@@ -96,11 +96,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 <footer class="post-actions">
                     <button class="action-btn ${post.isLiked ? 'liked' : ''}" onclick="toggleLike(${post.id})">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="${post.isLiked ? '#ff4757' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                        <i class="${post.isLiked ? 'ph-fill' : 'ph'} ph-heart" style="font-size: 20px; ${post.isLiked ? 'color: #ff4757;' : ''}"></i>
                         <span id="like-count-${post.id}">${post.likes}</span>
                     </button>
                     <button class="action-btn">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        <i class="ph ph-chat-circle" style="font-size: 20px;"></i>
                         ${post.comments}
                     </button>
                 </footer>
@@ -249,6 +249,26 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }, 1000);
+
+    // Toggle Password Visibility
+    const togglePasswordBtn = document.getElementById('toggle-password');
+    const passwordInput = document.getElementById('auth-password');
+    if (togglePasswordBtn && passwordInput) {
+        togglePasswordBtn.addEventListener('click', () => {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            
+            // Changer l'icone
+            const icon = togglePasswordBtn.querySelector('i');
+            if (type === 'text') {
+                icon.classList.remove('ph-eye');
+                icon.classList.add('ph-eye-slash');
+            } else {
+                icon.classList.remove('ph-eye-slash');
+                icon.classList.add('ph-eye');
+            }
+        });
+    }
 
     // Toggle Email / Phone
     const btnPhoneToggle = document.getElementById('btn-phone-toggle');

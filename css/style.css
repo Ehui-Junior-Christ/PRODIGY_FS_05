@@ -443,6 +443,37 @@ body {
     border-color: #555;
 }
 
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    margin-top: var(--space-2);
+}
+
+.password-wrapper .input-field {
+    margin-top: 0;
+    padding-right: 48px; /* space for icon */
+}
+
+.btn-toggle-password {
+    position: absolute;
+    right: 12px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--transition-fast);
+}
+
+.btn-toggle-password:hover {
+    color: var(--text-primary);
+}
+
 .media-upload-area {
     border: 2px dashed var(--border-color);
     border-radius: 8px;
@@ -519,5 +550,20 @@ body {
     .logo { display: none; }
     .main-content {
         padding-bottom: 80px;
+    }
+    .modal {
+        width: 95%;
+        margin: 0 auto;
+        padding: 0;
+    }
+    .modal-body {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    .post-header {
+        flex-wrap: wrap;
+    }
+    .post-actions {
+        justify-content: space-around;
     }
 }
