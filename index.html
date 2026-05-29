@@ -83,11 +83,7 @@
 
         <!-- VUE: Accueil -->
         <div id="view-home" class="view active-view">
-            <div class="stories-container" style="display:flex; gap:16px; padding: 16px; overflow-x: auto; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
-                <div style="width:64px;height:64px;border-radius:50%;border:2px dashed var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:24px;">+</div>
-                <div style="width:64px;height:64px;border-radius:50%;border:2px solid var(--accent-color);background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=Anna');background-size:cover;cursor:pointer;"></div>
-                <div style="width:64px;height:64px;border-radius:50%;border:2px solid var(--accent-color);background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=John');background-size:cover;cursor:pointer;"></div>
-            </div>
+            <!-- La barre de création rapide "Stories" a été retirée pour privilégier le flux principal -->
             <div class="feed" id="feed-container"></div>
         </div>
 
@@ -107,31 +103,9 @@
 
         <!-- VUE: Notifications -->
         <div id="view-notifications" class="view" style="display:none;">
-            <div class="feed" style="padding: 24px; display:flex; flex-direction:column; gap:16px;">
-                <div class="post" style="display:flex; align-items:center; gap:16px;">
-                    <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=Anna');flex-shrink:0;"></div>
-                    <div>
-                        <p><strong>Anna</strong> a aimé votre Angle sur <span class="prisme-tag">#Tech</span></p>
-                        <p style="font-size:13px; color:var(--text-secondary); margin-top:4px;">Il y a 5 minutes</p>
-                    </div>
-                    <i class="ph-fill ph-heart" style="margin-left:auto; color:#ff4757; font-size:22px;"></i>
-                </div>
-                <div class="post" style="display:flex; align-items:center; gap:16px;">
-                    <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=John');flex-shrink:0;"></div>
-                    <div>
-                        <p><strong>John</strong> a commencé à vous suivre</p>
-                        <p style="font-size:13px; color:var(--text-secondary); margin-top:4px;">Il y a 2 heures</p>
-                    </div>
-                    <i class="ph-fill ph-user-plus" style="margin-left:auto; color:var(--accent-color); font-size:22px;"></i>
-                </div>
-                <div class="post" style="display:flex; align-items:center; gap:16px;">
-                    <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=Maria');flex-shrink:0;"></div>
-                    <div>
-                        <p><strong>Maria</strong> a commenté votre Angle sur <span class="prisme-tag">#Art</span></p>
-                        <p style="font-size:13px; color:var(--text-secondary); margin-top:4px;">Hier</p>
-                    </div>
-                    <i class="ph-fill ph-chat-circle" style="margin-left:auto; color:#4ecdc4; font-size:22px;"></i>
-                </div>
+            <div class="feed" id="notifications-container" style="padding: 24px; display:flex; flex-direction:column; gap:16px;">
+                <!-- Rempli dynamiquement -->
+                <p style="text-align:center; color:var(--text-secondary); padding:24px;">Chargement des notifications...</p>
             </div>
         </div>
 
