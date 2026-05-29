@@ -55,8 +55,8 @@ router.post("/", authenticateToken, async (req, res) => {
 
     // media_url column needs to be added to db if it doesn't exist. We assume it's text.
     const aRes = await client.execute({
-      sql: "INSERT INTO angles (prisme_id, author_id, content) VALUES (?, ?, ?)",
-      args: [prismeId, req.user.id, content]
+      sql: "INSERT INTO angles (prisme_id, author_id, content, media_url) VALUES (?, ?, ?, ?)",
+      args: [prismeId, req.user.id, content, mediaUrl || null]
     });
     res.status(201).json({ id: aRes.lastInsertRowid });
   } catch (error) { res.status(500).json({ error: "Erreur création" }); }

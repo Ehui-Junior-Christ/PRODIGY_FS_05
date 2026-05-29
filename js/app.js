@@ -146,6 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </header>
                 <p class="post-content">${post.content}</p>
+                ${post.media_url ? `<div style="margin-top:12px; border-radius:12px; overflow:hidden; border:1px solid var(--border-color);"><img src="${post.media_url}" style="width:100%; display:block;" alt="Media attaché"></div>` : ''}
                 <div class="post-tags">
                     ${(post.tags || []).map(tag => `<span class="tag">#${tag}</span>`).join('')}
                 </div>
@@ -208,7 +209,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Modal logic
+    let currentPostMedia = null;
+
     function openModal() {
         if (!state.user) return alert("Veuillez vous connecter");
         modal.classList.add('active');
@@ -221,12 +223,41 @@ document.addEventListener('DOMContentLoaded', () => {
         postContent.value = '';
         postTags.value = '';
         prismeSelect.value = '';
+        currentPostMedia = null;
+        fileUpload.value = '';
+        mediaUploadArea.innerHTML = `
+            <i class="ph ph-image" style="font-size: 32px;"></i>
+            <span>Ajouter une image ou une vidéo</span>
+        `;
+        mediaUploadArea.style.backgroundImage = 'none';
+        mediaUploadArea.style.border = '2px dashed var(--border-color)';
     }
 
     createBtn.addEventListener('click', openModal);
     closeModal.addEventListener('click', hideModal);
     cancelPost.addEventListener('click', hideModal);
     mediaUploadArea.addEventListener('click', () => fileUpload.click());
+
+    fileUpload.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            if (file.size > 2 * 1024 * 1024) {
+                alert("L'image est trop volumineuse (max 2 Mo).");
+                fileUpload.value = '';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                currentPostMedia = evt.target.result;
+                mediaUploadArea.innerHTML = '';
+                mediaUploadArea.style.backgroundImage = `url(${currentPostMedia})`;
+                mediaUploadArea.style.backgroundSize = 'cover';
+                mediaUploadArea.style.backgroundPosition = 'center';
+                mediaUploadArea.style.border = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+    });
 
     // Publish post
     submitPost.addEventListener('click', async () => {
@@ -246,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${state.token}`
                 },
-                body: JSON.stringify({ content, prisme, tags })
+                body: JSON.stringify({ content, prisme, tags, mediaUrl: currentPostMedia })
             });
 
             if (res.ok) {

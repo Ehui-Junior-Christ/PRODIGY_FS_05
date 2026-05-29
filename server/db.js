@@ -31,6 +31,7 @@ export const initDb = async () => {
       prisme_id INTEGER,
       author_id INTEGER,
       content TEXT NOT NULL,
+      media_url TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (prisme_id) REFERENCES prismes (id),
       FOREIGN KEY (author_id) REFERENCES users (id)
