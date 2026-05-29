@@ -57,9 +57,18 @@
         <!-- Topbar dynamique -->
         <header class="topbar">
             <h1 id="topbar-title">Accueil</h1>
-            <div class="search-bar">
-                <i class="ph ph-magnifying-glass" style="font-size: 20px; color: var(--text-secondary);"></i>
-                <input type="text" id="search-input" placeholder="Rechercher...">
+            <div style="display:flex; align-items:center; gap:12px; margin-left:auto;">
+                <div class="search-bar">
+                    <i class="ph ph-magnifying-glass" style="font-size: 20px; color: var(--text-secondary);"></i>
+                    <input type="text" id="search-input" placeholder="Rechercher...">
+                </div>
+                <!-- Mobile-only action buttons -->
+                <button class="topbar-icon-btn" id="btn-theme-toggle-mobile" title="Changer le theme">
+                    <i class="ph ph-sun" style="font-size:20px;"></i>
+                </button>
+                <button class="topbar-icon-btn" id="btn-logout-mobile" style="display:none;" title="Deconnexion">
+                    <i class="ph ph-sign-out" style="font-size:20px;"></i>
+                </button>
             </div>
         </header>
 

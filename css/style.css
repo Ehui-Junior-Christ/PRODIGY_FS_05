@@ -26,6 +26,18 @@
     --transition-normal: 300ms var(--spring-ease);
 }
 
+[data-theme="light"] {
+    --bg-color: #ffffff;
+    --panel-bg: rgba(240, 240, 245, 0.8);
+    --panel-bg-hover: rgba(230, 230, 235, 0.9);
+    --border-color: rgba(0, 0, 0, 0.08);
+    --border-color-hover: rgba(0, 0, 0, 0.2);
+    --text-primary: #111111;
+    --text-secondary: #666666;
+    --accent-color: #000000;
+    --hover-bg: rgba(0, 0, 0, 0.05);
+}
+
 * {
     margin: 0;
     padding: 0;

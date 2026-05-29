@@ -522,7 +522,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── Profil (depuis la BDD) ─────────────────────────────────────────
     async function fetchAndRenderProfile() {
-        if (!state.user || !state.token) return;
+        const profileView = document.getElementById('view-profile');
+        if (!state.user || !state.token) {
+            if(profileView) profileView.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:48px;">Connectez-vous pour voir votre profil.</p>';
+            return;
+        }
 
         // Mettre à jour les infos de base immédiatement
         const nameEl = document.getElementById('profile-name');
