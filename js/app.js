@@ -579,6 +579,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('profile-angles').textContent = user.angles_count || 0;
                 document.getElementById('profile-followers').textContent = user.followers_count || 0;
                 document.getElementById('profile-following').textContent = user.following_count || 0;
+                const bioDisplay = document.getElementById('profile-bio');
+                if (bioDisplay) bioDisplay.textContent = user.bio || '';
 
                 // Handle Buttons
                 const isOwnProfile = state.user && state.user.handle === user.handle;
@@ -755,6 +757,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     state.user.handle = data.user.handle;
                     state.user.avatar_url = data.user.avatar_url;
                     state.user.cover_url = data.user.cover_url;
+                    state.user.bio = data.user.bio;
                     if (data.token) {
                         state.token = data.token;
                         localStorage.setItem('prisme_token', data.token);
