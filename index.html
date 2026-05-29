@@ -72,25 +72,137 @@
     </nav>
 
     <main class="main-content">
+        <!-- Topbar dynamique -->
         <header class="topbar">
-            <h1>Accueil</h1>
+            <h1 id="topbar-title">Accueil</h1>
             <div class="search-bar">
                 <i class="ph ph-magnifying-glass" style="font-size: 20px; color: var(--text-secondary);"></i>
-                <input type="text" placeholder="Rechercher des Prismes ou des tags...">
+                <input type="text" id="search-input" placeholder="Rechercher...">
             </div>
         </header>
 
-        <div class="stories-container" style="display:flex; gap:16px; padding: 16px; overflow-x: auto; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
-            <div style="width: 64px; height: 64px; border-radius: 50%; border: 2px dashed var(--text-secondary); display:flex; align-items:center; justify-content:center; cursor:pointer;">
-                +
+        <!-- VUE: Accueil -->
+        <div id="view-home" class="view active-view">
+            <div class="stories-container" style="display:flex; gap:16px; padding: 16px; overflow-x: auto; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
+                <div style="width:64px;height:64px;border-radius:50%;border:2px dashed var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:24px;">+</div>
+                <div style="width:64px;height:64px;border-radius:50%;border:2px solid var(--accent-color);background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=Anna');background-size:cover;cursor:pointer;"></div>
+                <div style="width:64px;height:64px;border-radius:50%;border:2px solid var(--accent-color);background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=John');background-size:cover;cursor:pointer;"></div>
             </div>
-            <!-- Mock Stories -->
-            <div style="width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--accent-color); background-image: url('https://api.dicebear.com/7.x/avataaars/svg?seed=Anna'); background-size: cover; cursor:pointer;"></div>
-            <div style="width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--accent-color); background-image: url('https://api.dicebear.com/7.x/avataaars/svg?seed=John'); background-size: cover; cursor:pointer;"></div>
+            <div class="feed" id="feed-container"></div>
         </div>
 
-        <div class="feed" id="feed-container">
-            <!-- Feed will be populated here -->
+        <!-- VUE: Tendances -->
+        <div id="view-trending" class="view" style="display:none;">
+            <div class="feed" style="padding: 24px;">
+                <div class="panel-section" style="margin-bottom:0;">
+                    <h2 style="font-size:22px; margin-bottom:24px;">🔥 Sujets du moment</h2>
+                    <div style="display:flex; flex-direction:column; gap:16px;" id="trending-full-list">
+                        <!-- rempli dynamiquement -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VUE: Notifications -->
+        <div id="view-notifications" class="view" style="display:none;">
+            <div class="feed" style="padding: 24px; display:flex; flex-direction:column; gap:16px;">
+                <div class="post" style="display:flex; align-items:center; gap:16px;">
+                    <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=Anna');flex-shrink:0;"></div>
+                    <div>
+                        <p><strong>Anna</strong> a aimé votre Angle sur <span class="prisme-tag">#Tech</span></p>
+                        <p style="font-size:13px; color:var(--text-secondary); margin-top:4px;">Il y a 5 minutes</p>
+                    </div>
+                    <i class="ph-fill ph-heart" style="margin-left:auto; color:#ff4757; font-size:22px;"></i>
+                </div>
+                <div class="post" style="display:flex; align-items:center; gap:16px;">
+                    <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=John');flex-shrink:0;"></div>
+                    <div>
+                        <p><strong>John</strong> a commencé à vous suivre</p>
+                        <p style="font-size:13px; color:var(--text-secondary); margin-top:4px;">Il y a 2 heures</p>
+                    </div>
+                    <i class="ph-fill ph-user-plus" style="margin-left:auto; color:var(--accent-color); font-size:22px;"></i>
+                </div>
+                <div class="post" style="display:flex; align-items:center; gap:16px;">
+                    <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=Maria');flex-shrink:0;"></div>
+                    <div>
+                        <p><strong>Maria</strong> a commenté votre Angle sur <span class="prisme-tag">#Art</span></p>
+                        <p style="font-size:13px; color:var(--text-secondary); margin-top:4px;">Hier</p>
+                    </div>
+                    <i class="ph-fill ph-chat-circle" style="margin-left:auto; color:#4ecdc4; font-size:22px;"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- VUE: Profil -->
+        <div id="view-profile" class="view" style="display:none;">
+            <div style="padding:24px; display:flex; flex-direction:column; gap:20px;">
+                <!-- Cover + Avatar -->
+                <div style="border-radius:16px; overflow:hidden; position:relative;">
+                    <div style="height:160px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);"></div>
+                    <div style="padding: 0 24px 24px; background: var(--panel-bg); border: 1px solid var(--border-color); border-top:none; border-radius: 0 0 16px 16px;">
+                        <div id="profile-avatar" style="width:80px;height:80px;border-radius:50%;border:3px solid var(--bg-color);background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=user');background-size:cover;margin-top:-40px;"></div>
+                        <h2 id="profile-name" style="margin-top:12px; font-size:20px;">Mon Profil</h2>
+                        <p id="profile-handle" style="color:var(--text-secondary); font-size:14px;">@utilisateur</p>
+                        <p style="color:var(--text-secondary); font-size:14px; margin-top:8px;">Bienvenue sur Prisme ✨</p>
+                        <div style="display:flex; gap:24px; margin-top:16px;">
+                            <div><strong id="profile-angles">0</strong> <span style="color:var(--text-secondary); font-size:14px;">Angles</span></div>
+                            <div><strong>0</strong> <span style="color:var(--text-secondary); font-size:14px;">Abonnés</span></div>
+                            <div><strong>0</strong> <span style="color:var(--text-secondary); font-size:14px;">Abonnements</span></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Mes posts -->
+                <div id="profile-feed" style="display:flex;flex-direction:column;gap:16px;">
+                    <p style="color:var(--text-secondary); text-align:center;">Aucun Angle publié pour le moment.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- VUE: Messages -->
+        <div id="view-messages" class="view" style="display:none;">
+            <div style="display:flex; height:calc(100vh - 73px);">
+                <!-- Liste conversations -->
+                <div style="width:280px; border-right:1px solid var(--border-color); overflow-y:auto; flex-shrink:0;">
+                    <div style="padding:16px; border-bottom:1px solid var(--border-color);">
+                        <div class="search-bar"><i class="ph ph-magnifying-glass"></i><input type="text" placeholder="Rechercher..."></div>
+                    </div>
+                    <div class="msg-conv active-conv" style="display:flex;align-items:center;gap:12px;padding:16px;cursor:pointer;border-bottom:1px solid var(--border-color);background:var(--hover-bg);">
+                        <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=Anna');flex-shrink:0;"></div>
+                        <div style="overflow:hidden;">
+                            <p style="font-weight:600;">Anna</p>
+                            <p style="font-size:13px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Salut ! Tu as vu l'Angle sur #Tech ?</p>
+                        </div>
+                    </div>
+                    <div class="msg-conv" style="display:flex;align-items:center;gap:12px;padding:16px;cursor:pointer;border-bottom:1px solid var(--border-color);">
+                        <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=John');flex-shrink:0;"></div>
+                        <div style="overflow:hidden;">
+                            <p style="font-weight:600;">John</p>
+                            <p style="font-size:13px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Merci pour le follow !</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- Zone de chat -->
+                <div style="flex:1;display:flex;flex-direction:column;">
+                    <div style="padding:16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:12px;">
+                        <div class="avatar" style="width:40px;height:40px;background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=Anna');background-size:cover;border-radius:50%;"></div>
+                        <p style="font-weight:600;">Anna</p>
+                    </div>
+                    <div style="flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;">
+                        <div style="align-self:flex-start;max-width:70%;background:var(--panel-bg);border:1px solid var(--border-color);padding:12px 16px;border-radius:16px 16px 16px 4px;">
+                            <p style="font-size:14px;">Salut ! Tu as vu l'Angle sur #Tech ?</p>
+                        </div>
+                        <div style="align-self:flex-end;max-width:70%;background:var(--accent-color);color:#000;padding:12px 16px;border-radius:16px 16px 4px 16px;">
+                            <p style="font-size:14px;">Oui, c'était très intéressant !</p>
+                        </div>
+                    </div>
+                    <div style="padding:16px;border-top:1px solid var(--border-color);display:flex;gap:12px;align-items:center;">
+                        <input type="text" placeholder="Écrire un message..." class="input-field" style="flex:1;">
+                        <button class="btn-primary" style="padding:12px 20px;border-radius:50%;width:48px;height:48px;display:flex;align-items:center;justify-content:center;">
+                            <i class="ph-fill ph-paper-plane-tilt" style="font-size:20px;"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </main>
 
@@ -179,16 +291,28 @@
 
                 <button type="submit" class="btn-primary" id="btn-auth-submit" style="width: 100%; margin-bottom: 16px;">Valider avec Email</button>
                 
-                <div style="display:flex; gap: 8px; margin-bottom: 16px;">
-                    <button type="button" class="btn-secondary" id="btn-google-login" style="flex:1; font-size:12px; background:white; color:black;">Google</button>
-                    <button type="button" class="btn-secondary" id="btn-phone-toggle" style="flex:1; font-size:12px;">Téléphone (SMS)</button>
+                <div style="display:flex; justify-content:space-between; align-items:center; gap: 8px;">
+                    <hr style="flex:1; border-color:rgba(255,255,255,0.1);">
+                    <span style="color:var(--text-secondary); font-size:12px;">OU</span>
+                    <hr style="flex:1; border-color:rgba(255,255,255,0.1);">
                 </div>
+
+                <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+                    <button type="button" class="btn-secondary auth-social-btn google" id="btn-google-login">
+                        <i class="ph-fill ph-google-logo" style="font-size: 20px;"></i>
+                        Continuer avec Google
+                    </button>
+                    <button type="button" class="btn-secondary auth-social-btn" id="btn-phone-toggle">
+                        <i class="ph ph-device-mobile" style="font-size: 20px;"></i>
+                        Téléphone (SMS)
+                    </button>
+                </div>
+                
+                <a href="#" id="auth-toggle" style="color:var(--accent-color); text-align:center; font-size:14px; margin-top:16px;">Pas encore de compte ? S'inscrire</a>
 
                 <div id="auth-verification-msg" style="display:none; color:#ff4757; font-size:13px; text-align:center; margin-bottom:16px;">
                     Un email de vérification vous a été envoyé. Veuillez cliquer sur le lien pour valider votre compte.
                 </div>
-
-                <a href="#" id="auth-toggle" style="text-align: center; color: var(--text-secondary); text-decoration: none; font-size: 14px;">Pas encore de compte ? S'inscrire</a>
             </form>
         </div>
     </div>

@@ -485,6 +485,97 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 1500);
 
+    // =============================================
+    // ROUTEUR SPA — Navigation entre les vues
+    // =============================================
+    const views = {
+        home:          { el: document.getElementById('view-home'),          title: 'Accueil' },
+        trending:      { el: document.getElementById('view-trending'),      title: 'Tendances' },
+        notifications: { el: document.getElementById('view-notifications'), title: 'Notifications' },
+        profile:       { el: document.getElementById('view-profile'),       title: 'Mon Profil' },
+        messages:      { el: document.getElementById('view-messages'),      title: 'Messages' },
+    };
+    const topbarTitle = document.getElementById('topbar-title');
+    let currentView = 'home';
+
+    function navigateTo(viewName) {
+        if (!views[viewName]) return;
+
+        // Masquer la vue courante
+        if (views[currentView]?.el) {
+            views[currentView].el.style.display = 'none';
+        }
+
+        // Afficher la nouvelle vue
+        views[viewName].el.style.display = 'block';
+        topbarTitle.textContent = views[viewName].title;
+        currentView = viewName;
+
+        // Mettre à jour les liens actifs dans la sidebar
+        document.querySelectorAll('.nav-links li').forEach(li => {
+            li.classList.toggle('active', li.dataset.view === viewName);
+        });
+
+        // Actions spécifiques à la vue
+        if (viewName === 'trending') renderTrendingFull();
+        if (viewName === 'profile') renderProfile();
+        if (viewName === 'messages') views.messages.el.style.display = 'flex';
+    }
+
+    // Attacher les clics de navigation
+    document.querySelectorAll('.nav-links li').forEach(li => {
+        li.addEventListener('click', () => {
+            const target = li.dataset.view;
+            if (target) navigateTo(target);
+        });
+    });
+
+    // Remplir la page Tendances
+    function renderTrendingFull() {
+        const list = document.getElementById('trending-full-list');
+        if (!list || !state.trending.length) return;
+        list.innerHTML = state.trending.map((t, i) => `
+            <div class="post" style="display:flex; align-items:center; gap:16px; cursor:pointer;">
+                <span style="font-size:20px; font-weight:700; color:var(--text-secondary); width:28px;">${i+1}</span>
+                <div>
+                    <p style="font-weight:600; font-size:16px;">${t.topic}</p>
+                    <p style="font-size:13px; color:var(--text-secondary);">${t.count}</p>
+                </div>
+                <i class="ph ph-trend-up" style="margin-left:auto; font-size:20px; color:var(--text-secondary);"></i>
+            </div>
+        `).join('');
+    }
+
+    // Remplir la page Profil avec les données de l'utilisateur connecté
+    function renderProfile() {
+        if (!state.user) return;
+        const nameEl = document.getElementById('profile-name');
+        const handleEl = document.getElementById('profile-handle');
+        const avatarEl = document.getElementById('profile-avatar');
+        if (nameEl) nameEl.textContent = state.user.name || 'Mon Profil';
+        if (handleEl) handleEl.textContent = '@' + (state.user.handle || state.user.name?.toLowerCase().replace(' ', '_') || 'utilisateur');
+        if (avatarEl) avatarEl.style.backgroundImage = `url('https://api.dicebear.com/7.x/avataaars/svg?seed=${state.user.name || 'user'}')`;
+
+        // Afficher les posts de l'utilisateur
+        const myPosts = state.posts.filter(p => p.author === state.user.name || p.author === state.user.email);
+        const profileFeed = document.getElementById('profile-feed');
+        const anglesCount = document.getElementById('profile-angles');
+        if (anglesCount) anglesCount.textContent = myPosts.length;
+        if (profileFeed) {
+            if (myPosts.length === 0) {
+                profileFeed.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding:24px;">Aucun Angle publié pour le moment.</p>';
+            } else {
+                profileFeed.innerHTML = myPosts.map(post => `
+                    <article class="post">
+                        <p class="post-content">${post.content}</p>
+                        <div class="post-tags">${(post.tags || []).map(tag => `<span class="tag">#${tag}</span>`).join('')}</div>
+                        <p style="font-size:13px; color:var(--text-secondary); margin-top:8px;">${new Date(post.created_at).toLocaleDateString()}</p>
+                    </article>
+                `).join('');
+            }
+        }
+    }
+
     // Initial render
     updateAuthUI();
     fetchPosts();
