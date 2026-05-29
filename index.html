@@ -36,6 +36,7 @@
             </li>
         </ul>
         <button class="btn-primary" id="btn-create-prisme">Créer un Angle</button>
+        <button class="btn-secondary" id="btn-logout" style="display:none; margin-top: auto;">Déconnexion</button>
     </nav>
 
     <main class="main-content">
@@ -96,6 +97,27 @@
                 <button class="btn-secondary" id="cancel-post">Annuler</button>
                 <button class="btn-primary" id="submit-post">Publier l'Angle</button>
             </footer>
+        </div>
+    </div>
+
+    <!-- Modal: Auth -->
+    <div class="modal-overlay" id="auth-modal">
+        <div class="modal" style="max-width: 400px;">
+            <header class="modal-header">
+                <h2 id="auth-mode-text">Connexion</h2>
+            </header>
+            <form id="auth-form" class="modal-body">
+                <div id="auth-name-group" style="display:none;">
+                    <input type="text" id="auth-name" placeholder="Nom complet" class="input-field">
+                </div>
+                <div id="auth-handle-group" style="display:none;">
+                    <input type="text" id="auth-handle" placeholder="@pseudonyme" class="input-field">
+                </div>
+                <input type="email" id="auth-email" placeholder="Adresse email" class="input-field" required>
+                <input type="password" id="auth-password" placeholder="Mot de passe" class="input-field" required>
+                <button type="submit" class="btn-primary" style="width: 100%;">Valider</button>
+                <a href="#" id="auth-toggle" style="text-align: center; color: var(--text-secondary); text-decoration: none; font-size: 14px; margin-top: 8px;">Pas encore de compte ? S'inscrire</a>
+            </form>
         </div>
     </div>
 
