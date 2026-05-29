@@ -222,161 +222,101 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('auth-verification-msg').style.display = 'none';
     });
 
-    // Écouteur d'état Firebase
-    setTimeout(() => {
-        if(window.fbAuthMethods && window.firebaseAuth) {
-            window.fbAuthMethods.onAuthStateChanged(window.firebaseAuth, async (user) => {
-                if (user) {
-                    if (!user.emailVerified) {
-                        state.user = null;
-                        state.token = null;
-                        updateAuthUI();
-                        return;
-                    }
-                    state.token = await user.getIdToken();
-                    state.user = { email: user.email, name: user.displayName || user.email.split('@')[0] };
-                    localStorage.setItem('prisme_token', state.token);
-                    localStorage.setItem('prisme_user', JSON.stringify(state.user));
-                    updateAuthUI();
-                    fetchPosts();
-                } else {
-                    state.user = null;
-                    state.token = null;
-                    localStorage.removeItem('prisme_user');
-                    localStorage.removeItem('prisme_token');
-                    updateAuthUI();
-                }
-            });
-        }
-    }, 1000);
-
-    // Toggle Password Visibility
-    const togglePasswordBtn = document.getElementById('toggle-password');
-    const passwordInput = document.getElementById('auth-password');
-    if (togglePasswordBtn && passwordInput) {
-        togglePasswordBtn.addEventListener('click', () => {
-            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-            passwordInput.setAttribute('type', type);
-            
-            // Changer l'icone
-            const icon = togglePasswordBtn.querySelector('i');
-            if (type === 'text') {
-                icon.classList.remove('ph-eye');
-                icon.classList.add('ph-eye-slash');
-            } else {
-                icon.classList.remove('ph-eye-slash');
-                icon.classList.add('ph-eye');
-            }
-        });
-    }
-
-    // Toggle Email / Phone
-    const btnPhoneToggle = document.getElementById('btn-phone-toggle');
-    const emailGroup = document.getElementById('auth-email-group');
-    const phoneGroup = document.getElementById('auth-phone-group');
-    let isPhoneMode = false;
-
-    if (btnPhoneToggle) {
-        btnPhoneToggle.addEventListener('click', () => {
-            isPhoneMode = !isPhoneMode;
-            if (isPhoneMode) {
-                emailGroup.style.display = 'none';
-                phoneGroup.style.display = 'flex';
-                btnPhoneToggle.textContent = 'Email';
-                document.getElementById('btn-auth-submit').textContent = 'Valider le code SMS';
-            } else {
-                emailGroup.style.display = 'block';
-                phoneGroup.style.display = 'none';
-                btnPhoneToggle.textContent = 'Téléphone (SMS)';
-                document.getElementById('btn-auth-submit').textContent = 'Valider avec Email';
-            }
-        });
-    }
-
-    // Auth Submission (Email or SMS Code)
+    // Auth Submission (Email & Password via custom API)
     authForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        if(!window.firebaseAuth || !window.fbAuthMethods) {
-            return alert("Firebase n'est pas encore initialisé. Veuillez ajouter le firebaseConfig dans index.html");
-        }
-
-        const auth = window.firebaseAuth;
-
-        // Si on est en mode Téléphone, la soumission du form valide le code SMS
-        if (isPhoneMode) {
-            const smsCode = document.getElementById('auth-sms-code').value;
-            if (!smsCode || !window.confirmationResult) return alert("Veuillez entrer le code SMS");
-            try {
-                const result = await window.confirmationResult.confirm(smsCode);
-                const user = result.user;
-                // Enregistrer dans Turso (Handle/Name optionnel via Phone)
-                const name = document.getElementById('auth-name').value || "Utilisateur_" + user.phoneNumber.slice(-4);
-                const handle = document.getElementById('auth-handle').value || "user_" + user.phoneNumber.slice(-4);
-                await fetch(`${API_URL}/auth/register`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, handle, email: user.phoneNumber, password: 'firebase_managed', termsAccepted: true })
-                }).catch(() => {}); // ignore si existe déjà
-                
-                authModal.style.display = 'none';
-                return; // l'écouteur onAuthStateChanged fera le reste
-            } catch (error) {
-                return alert("Code SMS invalide ou expiré.");
-            }
-        }
-
-        // --- Mode Email ---
-        const { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } = window.fbAuthMethods;
-
-        const email = document.getElementById('auth-email').value;
+        const email = document.getElementById('auth-email').value.trim();
         const password = document.getElementById('auth-password').value;
-        const name = document.getElementById('auth-name').value;
-        const handle = document.getElementById('auth-handle').value;
+        const name = document.getElementById('auth-name').value.trim();
+        const handle = document.getElementById('auth-handle').value.trim();
         const termsAccepted = document.getElementById('auth-terms').checked;
 
         if (!isLoginMode && !termsAccepted) {
             return alert("Vous devez accepter les conditions d'utilisation.");
         }
 
+        const btnSubmit = document.getElementById('btn-auth-submit');
+        const originalText = btnSubmit.textContent;
+        btnSubmit.textContent = 'Patientez...';
+        btnSubmit.disabled = true;
+
         try {
             if (isLoginMode) {
-                // Login Firebase
-                const userCredential = await signInWithEmailAndPassword(auth, email, password);
-                if (!userCredential.user.emailVerified) {
-                    await window.fbAuthMethods.signOut(auth);
-                    alert("Veuillez vérifier votre email avant de vous connecter. Vérifiez vos spams.");
-                    return;
-                }
-            } else {
-                // Register Firebase
-                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                await sendEmailVerification(userCredential.user);
-                
-                // Enregistrer dans notre DB Turso
-                await fetch(`${API_URL}/auth/register`, {
+                // Login API
+                const res = await fetch(`${API_URL}/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, handle, email, password: 'firebase_managed', termsAccepted })
+                    body: JSON.stringify({ email, password })
                 });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    state.token = data.token;
+                    state.user = data.user;
+                    localStorage.setItem('prisme_token', state.token);
+                    localStorage.setItem('prisme_user', JSON.stringify(state.user));
+                    updateAuthUI();
+                    fetchPosts();
+                } else {
+                    alert(data.error || "Erreur de connexion");
+                }
+            } else {
+                // Register API
+                const res = await fetch(`${API_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, handle, email, password, termsAccepted })
+                });
+                const data = await res.json();
 
-                document.getElementById('auth-verification-msg').style.display = 'block';
-                await window.fbAuthMethods.signOut(auth);
-                alert("Compte créé ! Un e-mail de validation (lien) vous a été envoyé. Veuillez cliquer dessus pour valider votre compte.");
-                authToggle.click(); // Switch back to login
+                if (res.ok) {
+                    document.getElementById('auth-verification-msg').style.display = 'block';
+                    alert("Compte créé ! Un e-mail de validation vous a été envoyé.");
+                    authToggle.click(); // Switch back to login
+                } else {
+                    alert(data.error || "Erreur d'inscription");
+                }
             }
         } catch (error) {
             console.error(error);
-            if (error.code === 'auth/email-already-in-use') alert("Cet email est déjà utilisé.");
-            else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') alert("Identifiants incorrects.");
-            else alert("Erreur d'authentification : " + error.message);
+            alert("Erreur de communication avec le serveur.");
+        } finally {
+            btnSubmit.textContent = originalText;
+            btnSubmit.disabled = false;
         }
     });
 
     if(btnLogout) {
-        btnLogout.addEventListener('click', async () => {
-            if(window.firebaseAuth && window.fbAuthMethods) {
-                await window.fbAuthMethods.signOut(window.firebaseAuth);
+        btnLogout.addEventListener('click', () => {
+            state.user = null;
+            state.token = null;
+            localStorage.removeItem('prisme_user');
+            localStorage.removeItem('prisme_token');
+            updateAuthUI();
+        });
+    }
+
+    // Mot de passe oublié
+    const btnForgotPw = document.getElementById('auth-forgot-pw');
+    if (btnForgotPw) {
+        btnForgotPw.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value.trim();
+            if (!email) {
+                alert("Veuillez d'abord entrer votre adresse e-mail dans le champ prévu.");
+                return;
+            }
+            try {
+                const res = await fetch(`${API_URL}/auth/forgot-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                alert(data.message || "Requête envoyée.");
+            } catch (err) {
+                alert("Erreur de connexion.");
             }
         });
     }

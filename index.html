@@ -309,12 +309,7 @@
                     </div>
                 </div>
 
-                <div id="auth-phone-group" style="display:none; flex-direction:column; gap:8px;">
-                    <input type="tel" id="auth-phone" placeholder="Numéro (ex: +33612345678)" class="input-field">
-                    <div id="recaptcha-container"></div>
-                    <button type="button" class="btn-secondary" id="btn-send-sms">Envoyer le code SMS</button>
-                    <input type="text" id="auth-sms-code" placeholder="Code à 6 chiffres" class="input-field" style="display:none;">
-                </div>
+
                 
                 <div id="auth-terms-group" style="display:none; font-size: 12px; color: var(--text-secondary); margin: 8px 0;">
                     <label><input type="checkbox" id="auth-terms"> J'accepte les conditions d'utilisation</label>
@@ -324,24 +319,7 @@
 
                 <button type="submit" class="btn-primary" id="btn-auth-submit" style="width: 100%; margin-bottom: 16px;">Valider avec Email</button>
                 
-                <div style="display:flex; justify-content:space-between; align-items:center; gap: 8px;">
-                    <hr style="flex:1; border-color:rgba(255,255,255,0.1);">
-                    <span style="color:var(--text-secondary); font-size:12px;">OU</span>
-                    <hr style="flex:1; border-color:rgba(255,255,255,0.1);">
-                </div>
-
-                <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
-                    <button type="button" class="btn-secondary auth-social-btn google" id="btn-google-login">
-                        <i class="ph-fill ph-google-logo" style="font-size: 20px;"></i>
-                        Continuer avec Google
-                    </button>
-                    <button type="button" class="btn-secondary auth-social-btn" id="btn-phone-toggle">
-                        <i class="ph ph-device-mobile" style="font-size: 20px;"></i>
-                        Téléphone (SMS)
-                    </button>
-                </div>
-                
-                <a href="#" id="auth-toggle" style="color:var(--accent-color); text-align:center; font-size:14px; margin-top:16px;">Pas encore de compte ? S'inscrire</a>
+                <a href="#" id="auth-toggle" style="color:var(--accent-color); text-align:center; display:block; font-size:14px; margin-top:16px;">Pas encore de compte ? S'inscrire</a>
 
                 <div id="auth-verification-msg" style="display:none; color:#ff4757; font-size:13px; text-align:center; margin-bottom:16px;">
                     Un email de vérification vous a été envoyé. Veuillez cliquer sur le lien pour valider votre compte.
