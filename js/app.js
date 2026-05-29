@@ -62,6 +62,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const mediaUploadArea = document.getElementById('media-upload-area');
     const fileUpload = document.getElementById('file-upload');
 
+    // Password visibility toggle
+    const togglePasswordBtn = document.getElementById('toggle-password');
+    const authPasswordInput = document.getElementById('auth-password');
+    if (togglePasswordBtn && authPasswordInput) {
+        togglePasswordBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const isPassword = authPasswordInput.type === 'password';
+            authPasswordInput.type = isPassword ? 'text' : 'password';
+            const icon = togglePasswordBtn.querySelector('i');
+            if (icon) {
+                icon.className = isPassword ? 'ph ph-eye-slash' : 'ph ph-eye';
+            }
+        });
+    }
+
     // UI Updates
     function updateAuthUI() {
         if (state.user) {
