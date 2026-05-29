@@ -23,7 +23,7 @@ router.get("/", requireAuth, async (req, res) => {
 
     // Likes reçus sur les angles de l'utilisateur
     const likesRes = await client.execute({
-      sql: `SELECT 'like' as type, u.name as actor_name, u.handle as actor_handle,
+      sql: `SELECT 'like' as type, u.name as actor_name, u.handle as actor_handle, u.avatar_url as actor_avatar_url,
              a.content as angle_content, a.id as angle_id, l.created_at
              FROM likes l
              JOIN users u ON l.user_id = u.id
@@ -35,7 +35,7 @@ router.get("/", requireAuth, async (req, res) => {
 
     // Nouveaux abonnés
     const followsRes = await client.execute({
-      sql: `SELECT 'follow' as type, u.name as actor_name, u.handle as actor_handle,
+      sql: `SELECT 'follow' as type, u.name as actor_name, u.handle as actor_handle, u.avatar_url as actor_avatar_url,
              NULL as angle_content, NULL as angle_id, f.created_at
              FROM follows f
              JOIN users u ON f.follower_id = u.id
@@ -45,7 +45,7 @@ router.get("/", requireAuth, async (req, res) => {
     });
 
     const commentsRes = await client.execute({
-      sql: `SELECT 'comment' as type, u.name as actor_name, u.handle as actor_handle,
+      sql: `SELECT 'comment' as type, u.name as actor_name, u.handle as actor_handle, u.avatar_url as actor_avatar_url,
              c.content as comment_content, a.content as angle_content, a.id as angle_id, c.created_at
              FROM comments c
              JOIN users u ON c.user_id = u.id

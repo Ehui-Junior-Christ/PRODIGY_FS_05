@@ -39,12 +39,32 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/'/g, '&#039;');
     }
 
-    function avatarUrl(user) {
-        return user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.handle || user?.author_handle || 'user')}`;
+    function isRealProfilePhoto(url) {
+        return Boolean(url && !String(url).includes('api.dicebear.com'));
     }
 
-    function userAvatarUrl(user) {
-        return user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.handle || user?.name || 'user')}`;
+    function avatarStyle(user) {
+        return isRealProfilePhoto(user?.avatar_url)
+            ? `background-image:url('${String(user.avatar_url).replace(/'/g, "%27")}')`
+            : '';
+    }
+
+    function avatarInitials(user) {
+        const source = user?.name || user?.author || user?.handle || user?.author_handle || '?';
+        const words = String(source).trim().split(/\s+/).filter(Boolean);
+        const initials = words.length > 1
+            ? `${words[0][0] || ''}${words[1][0] || ''}`
+            : String(source).slice(0, 2);
+        return escapeHtml(initials.toUpperCase());
+    }
+
+    function avatarClass(user) {
+        return isRealProfilePhoto(user?.avatar_url) ? 'avatar' : 'avatar avatar-placeholder';
+    }
+
+    function avatarMarkup(user, extraStyle = '') {
+        const style = [avatarStyle(user), extraStyle].filter(Boolean).join(';');
+        return `<div class="${avatarClass(user)}" style="${style}">${isRealProfilePhoto(user?.avatar_url) ? '' : avatarInitials(user)}</div>`;
     }
 
     function affinityText(user) {
@@ -203,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <h2>Personnes</h2>
                 ${users.map(user => `
                     <article class="user-result-card" onclick="navigateTo('profile', 'user=${encodeURIComponent(user.handle)}')">
-                        <div class="avatar" style="background-image:url('${userAvatarUrl(user)}')"></div>
+                        ${avatarMarkup(user)}
                         <div>
                             <strong>${escapeHtml(user.name)}</strong>
                             <p>@${escapeHtml(user.handle)} · ${user.followers_count || 0} abonnés · ${user.angles_count || 0} Angles</p>
@@ -223,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${localPosts.map(post => `
                     <article class="post" data-id="${post.id}">
                         <header class="post-header" style="cursor:pointer;" onclick="navigateTo('profile', 'user=${post.author_handle}')">
-                            <div class="avatar" style="background-image: url('${avatarUrl(post)}')"></div>
+                            ${avatarMarkup(post)}
                             <div class="post-meta" style="flex:1;">
                                 <h3>${escapeHtml(post.author)} <span style="font-weight:normal; font-size:13px; color:var(--text-secondary);">@${escapeHtml(post.author_handle)}</span> <span class="prisme-tag">dans #${escapeHtml(post.prisme || 'General')}</span></h3>
                                 <p>${post.created_at ? new Date(post.created_at).toLocaleDateString() : ''}</p>
@@ -304,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
         feedContainer.innerHTML = visiblePosts.map(post => `
             <article class="post" data-id="${post.id}">
                 <header class="post-header" style="cursor:pointer;" onclick="navigateTo('profile', 'user=${post.author_handle}')">
-                    <div class="avatar" style="background-image: url('${avatarUrl(post)}')"></div>
+                    ${avatarMarkup(post)}
                     <div class="post-meta" style="flex:1;">
                         <h3>${escapeHtml(post.author)} <span style="font-weight:normal; font-size:13px; color:var(--text-secondary);">@${escapeHtml(post.author_handle)}</span> <span class="prisme-tag">dans #${escapeHtml(post.prisme || 'General')}</span></h3>
                         <p>${post.created_at ? new Date(post.created_at).toLocaleDateString() : ''}</p>
@@ -368,7 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? state.suggestions.map(s => `
                     <li class="suggestion-item" onclick="navigateTo('profile', 'user=${encodeURIComponent(s.handle)}')">
                         <div class="suggestion-info">
-                            <div class="avatar" style="background-image: url('${userAvatarUrl(s)}')"></div>
+                            ${avatarMarkup(s)}
                             <div>
                                 <p>${escapeHtml(s.name)}</p>
                                 <p style="font-size: 12px; color: var(--text-secondary)">@${escapeHtml(s.handle)}</p>
@@ -447,7 +467,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             list.innerHTML = comments.map(comment => `
                 <div style="display:flex; gap:10px; align-items:flex-start;">
-                    <div class="avatar" style="width:32px;height:32px;background-image:url('${avatarUrl(comment)}');flex-shrink:0;"></div>
+                    ${avatarMarkup(comment, 'width:32px;height:32px;flex-shrink:0')}
                     <div style="background:var(--hover-bg); border:1px solid var(--border-color); border-radius:12px; padding:10px 12px; flex:1;">
                         <p style="font-size:13px; font-weight:600; margin:0 0 4px;">${escapeHtml(comment.author)} <span style="font-weight:400; color:var(--text-secondary);">@${escapeHtml(comment.author_handle)}</span></p>
                         <p style="font-size:14px; margin:0;">${escapeHtml(comment.content)}</p>
@@ -684,7 +704,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Publish post
     submitPost.addEventListener('click', async () => {
         const content = postContent.value.trim();
-        const prisme = prismeSelect.options[prismeSelect.selectedIndex].value || prismeSelect.options[prismeSelect.selectedIndex].text.replace('#', '');
+        const selectedPrisme = prismeSelect.options[prismeSelect.selectedIndex];
+        const prisme = selectedPrisme.value || 'general';
         const tags = postTags.value.split(',').map(t => t.trim()).filter(t => t);
 
         if (!content) return;
@@ -1099,7 +1120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     return `
                         <div class="post" style="display:flex; align-items:center; gap:16px; cursor:pointer;" onclick="navigateTo('profile', 'user=${n.actor_handle}')">
-                            <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=${n.actor_handle}');flex-shrink:0;"></div>
+                            ${avatarMarkup({ name: n.actor_name, handle: n.actor_handle, avatar_url: n.actor_avatar_url }, 'flex-shrink:0')}
                             <div style="flex:1;">${text}<p style="font-size:12px; color:var(--text-secondary); margin-top:4px;">${timeAgo(n.created_at)}</p></div>
                             <i class="${icon}" style="font-size:22px; color:${iconColor}; flex-shrink:0;"></i>
                         </div>
@@ -1145,7 +1166,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (nameEl) nameEl.textContent = user.name;
                 if (handleEl) handleEl.textContent = '@' + user.handle;
                 if (avatarEl) {
-                    avatarEl.style.backgroundImage = user.avatar_url ? `url('${user.avatar_url}')` : `url('https://api.dicebear.com/7.x/avataaars/svg?seed=${user.handle}')`;
+                    avatarEl.className = isRealProfilePhoto(user.avatar_url) ? '' : 'avatar-placeholder';
+                    avatarEl.style.backgroundImage = isRealProfilePhoto(user.avatar_url) ? `url('${user.avatar_url}')` : '';
+                    avatarEl.textContent = isRealProfilePhoto(user.avatar_url) ? '' : avatarInitials(user);
                 }
                 if (coverEl) {
                     coverEl.style.backgroundImage = user.cover_url ? `url('${user.cover_url}')` : `linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)`;
@@ -1255,7 +1278,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     currentEditAvatar = ev.target.result;
-                    if(avatarPreview) avatarPreview.style.backgroundImage = `url(${currentEditAvatar})`;
+                    if (avatarPreview) {
+                        avatarPreview.className = '';
+                        avatarPreview.style.backgroundImage = `url(${currentEditAvatar})`;
+                        avatarPreview.textContent = '';
+                    }
                 };
                 reader.readAsDataURL(file);
             }
@@ -1287,7 +1314,11 @@ document.addEventListener('DOMContentLoaded', () => {
             currentEditAvatar = state.user.avatar_url || null;
             currentEditCover = state.user.cover_url || null;
             
-            if (avatarPreview) avatarPreview.style.backgroundImage = currentEditAvatar ? `url(${currentEditAvatar})` : `url('https://api.dicebear.com/7.x/avataaars/svg?seed=${state.user.handle}')`;
+            if (avatarPreview) {
+                avatarPreview.className = isRealProfilePhoto(currentEditAvatar) ? '' : 'avatar-placeholder';
+                avatarPreview.style.backgroundImage = isRealProfilePhoto(currentEditAvatar) ? `url(${currentEditAvatar})` : '';
+                avatarPreview.textContent = isRealProfilePhoto(currentEditAvatar) ? '' : avatarInitials(state.user);
+            }
             if (coverPreview) coverPreview.style.backgroundImage = currentEditCover ? `url(${currentEditCover})` : `linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)`;
 
             editProfileModal.classList.add('active');
@@ -1441,7 +1472,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         div.className = `msg-conv ${u.handle === activeReceiverHandle ? 'active-conv' : ''}`;
                         div.style.cssText = `display:flex;align-items:center;gap:12px;padding:16px;cursor:pointer;border-bottom:1px solid var(--border-color); ${u.handle === activeReceiverHandle ? 'background:var(--hover-bg);' : ''}`;
                         div.innerHTML = `
-                            <div class="avatar" style="background-image:url('${userAvatarUrl(u)}');flex-shrink:0;"></div>
+                            ${avatarMarkup(u, 'flex-shrink:0')}
                             <div style="overflow:hidden;">
                                 <p style="font-weight:600;">${escapeHtml(u.name)}</p>
                                 <p style="font-size:13px;color:var(--text-secondary);">@${escapeHtml(u.handle)}</p>
@@ -1469,7 +1500,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             chatArea.innerHTML = `
                 <div style="padding:16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:12px; backdrop-filter:blur(10px);">
-                    <div class="avatar" style="width:40px;height:40px;background-image:url('${userAvatarUrl(selectedUser)}');background-size:cover;border-radius:50%;"></div>
+                    ${avatarMarkup(selectedUser, 'width:40px;height:40px;background-size:cover;border-radius:50%;')}
                     <div>
                         <p style="font-weight:600;">${escapeHtml(name || handle)}</p>
                         <p style="font-size:12px; color:var(--text-secondary);">@${escapeHtml(handle)}</p>
@@ -1553,7 +1584,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="message-suggestion-title">${escapeHtml(title)}</div>
                 ${users.map(user => `
                     <button class="message-person-result" type="button" data-handle="${escapeHtml(user.handle)}">
-                        <div class="avatar" style="background-image:url('${userAvatarUrl(user)}')"></div>
+                        ${avatarMarkup(user)}
                         <div>
                             <strong>${escapeHtml(user.name)}</strong>
                             <span>@${escapeHtml(user.handle)}</span>

@@ -64,6 +64,8 @@ app.get("/api/trending", async (req, res) => {
       SELECT p.name as topic, COUNT(a.id) as count
       FROM prismes p
       LEFT JOIN angles a ON a.prisme_id = p.id
+      WHERE lower(p.name) NOT LIKE '%selectionner%'
+        AND lower(p.name) NOT LIKE '%sélectionner%'
       GROUP BY p.id
       ORDER BY count DESC
       LIMIT 10

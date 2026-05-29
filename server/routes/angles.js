@@ -60,11 +60,18 @@ router.get("/", async (req, res) => {
 router.post("/", authenticateToken, async (req, res) => {
   try {
     const { content, prisme, mediaUrl } = req.body;
+    const cleanPrisme = String(prisme || "general")
+      .replace(/^#/, "")
+      .trim()
+      .toLowerCase();
+    const prismeName = cleanPrisme && !cleanPrisme.includes("selectionner") && !cleanPrisme.includes("sélectionner")
+      ? cleanPrisme
+      : "general";
     let prismeId = null;
-    if (prisme) {
-      const pRes = await client.execute({ sql: "SELECT id FROM prismes WHERE name = ?", args: [prisme] });
+    if (prismeName) {
+      const pRes = await client.execute({ sql: "SELECT id FROM prismes WHERE name = ?", args: [prismeName] });
       if (pRes.rows.length > 0) prismeId = pRes.rows[0].id;
-      else prismeId = (await client.execute({ sql: "INSERT INTO prismes (name) VALUES (?)", args: [prisme] })).lastInsertRowid;
+      else prismeId = (await client.execute({ sql: "INSERT INTO prismes (name) VALUES (?)", args: [prismeName] })).lastInsertRowid;
     }
 
     // media_url column needs to be added to db if it doesn't exist. We assume it's text.
