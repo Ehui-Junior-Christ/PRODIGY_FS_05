@@ -650,13 +650,68 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelEditProfile = document.getElementById('cancel-edit-profile');
     const saveEditProfile = document.getElementById('save-edit-profile');
     
+    let currentEditAvatar = null;
+    let currentEditCover = null;
+
+    const avatarUpload = document.getElementById('edit-avatar-upload');
+    const coverUpload = document.getElementById('edit-cover-upload');
+    const avatarPreview = document.getElementById('edit-avatar-preview');
+    const coverPreview = document.getElementById('edit-cover-preview');
+
+    // Make previews clickable to trigger upload
+    if (avatarPreview && avatarUpload) {
+        avatarPreview.addEventListener('click', () => avatarUpload.click());
+    }
+    if (coverPreview && coverUpload) {
+        coverPreview.addEventListener('click', () => coverUpload.click());
+    }
+    const btnChangeAvatar = document.getElementById('btn-change-avatar');
+    if (btnChangeAvatar && avatarUpload) {
+        btnChangeAvatar.addEventListener('click', () => avatarUpload.click());
+    }
+
+    if (avatarUpload) {
+        avatarUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    currentEditAvatar = ev.target.result;
+                    if(avatarPreview) avatarPreview.style.backgroundImage = `url(${currentEditAvatar})`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    if (coverUpload) {
+        coverUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    currentEditCover = ev.target.result;
+                    if(coverPreview) coverPreview.style.backgroundImage = `url(${currentEditCover})`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
     if (btnEditProfile) {
         btnEditProfile.addEventListener('click', () => {
             if (!state.user) return;
             document.getElementById('edit-profile-name').value = state.user.name || '';
             document.getElementById('edit-profile-handle').value = state.user.handle || '';
-            document.getElementById('edit-profile-avatar').value = state.user.avatar_url || '';
-            document.getElementById('edit-profile-cover').value = state.user.cover_url || '';
+            const bioEl = document.getElementById('edit-profile-bio');
+            if (bioEl) bioEl.value = state.user.bio || '';
+
+            currentEditAvatar = state.user.avatar_url || null;
+            currentEditCover = state.user.cover_url || null;
+            
+            if (avatarPreview) avatarPreview.style.backgroundImage = currentEditAvatar ? `url(${currentEditAvatar})` : `url('https://api.dicebear.com/7.x/avataaars/svg?seed=${state.user.handle}')`;
+            if (coverPreview) coverPreview.style.backgroundImage = currentEditCover ? `url(${currentEditCover})` : `linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)`;
+
             editProfileModal.style.display = 'flex';
         });
     }
@@ -670,8 +725,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!state.token) return;
             const newName = document.getElementById('edit-profile-name').value.trim();
             const newHandle = document.getElementById('edit-profile-handle').value.trim();
-            const newAvatar = document.getElementById('edit-profile-avatar').value.trim();
-            const newCover = document.getElementById('edit-profile-cover').value.trim();
+            const bioEl = document.getElementById('edit-profile-bio');
+            const newBio = bioEl ? bioEl.value.trim() : null;
 
             if (!newName || !newHandle) {
                 alert("Le nom et le handle sont obligatoires.");
@@ -685,7 +740,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${state.token}` 
                     },
-                    body: JSON.stringify({ name: newName, handle: newHandle, avatar_url: newAvatar, cover_url: newCover })
+                    body: JSON.stringify({ 
+                        name: newName, 
+                        handle: newHandle, 
+                        avatar_url: currentEditAvatar, 
+                        cover_url: currentEditCover,
+                        bio: newBio
+                    })
                 });
                 
                 const data = await res.json();
