@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prisme - Perspectives Partagées</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="logo">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 2 22 22 22"></polygon>
+            </svg>
+            <span>Prisme</span>
+        </div>
+        <ul class="nav-links">
+            <li class="active" data-view="home">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                <span>Accueil</span>
+            </li>
+            <li data-view="trending">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>
+                <span>Tendances</span>
+            </li>
+            <li data-view="notifications">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                <span>Notifications</span>
+            </li>
+            <li data-view="profile">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span>Profil</span>
+            </li>
+        </ul>
+        <button class="btn-primary" id="btn-create-prisme">Créer un Angle</button>
+    </nav>
+
+    <main class="main-content">
+        <header class="topbar">
+            <h1>Accueil</h1>
+            <div class="search-bar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" placeholder="Rechercher des Prismes ou des tags...">
+            </div>
+        </header>
+
+        <div class="feed" id="feed-container">
+            <!-- Feed will be populated here -->
+        </div>
+    </main>
+
+    <aside class="right-panel">
+        <div class="panel-section">
+            <h2>Sujets du moment</h2>
+            <ul class="trending-list" id="trending-list">
+                <!-- Trending topics -->
+            </ul>
+        </div>
+        <div class="panel-section">
+            <h2>Suggestions d'abonnements</h2>
+            <ul class="suggestions-list" id="suggestions-list">
+                <!-- Suggestions -->
+            </ul>
+        </div>
+    </aside>
+
+    <!-- Modal: Create Post -->
+    <div class="modal-overlay" id="create-modal">
+        <div class="modal">
+            <header class="modal-header">
+                <h2>Ajouter un Angle</h2>
+                <button class="close-btn" id="close-modal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </header>
+            <div class="modal-body">
+                <select id="prisme-select" class="input-field">
+                    <option value="">Sélectionner ou créer un Prisme (Sujet)</option>
+                    <option value="tech">#Tech</option>
+                    <option value="art">#Art</option>
+                </select>
+                <textarea id="post-content" placeholder="Partagez votre perspective..." class="input-field" rows="4"></textarea>
+                <div class="media-upload-area" id="media-upload-area">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                    <span>Ajouter une image ou une vidéo</span>
+                    <input type="file" id="file-upload" accept="image/*,video/*" hidden>
+                </div>
+                <div class="tags-input-area">
+                    <input type="text" id="post-tags" placeholder="Ajouter des tags (séparés par des virgules)" class="input-field">
+                </div>
+            </div>
+            <footer class="modal-footer">
+                <button class="btn-secondary" id="cancel-post">Annuler</button>
+                <button class="btn-primary" id="submit-post">Publier l'Angle</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Script -->
+    <script src="js/app.js"></script>
+</body>
+</html>
