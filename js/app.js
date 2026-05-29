@@ -217,6 +217,8 @@ document.addEventListener('DOMContentLoaded', () => {
         authToggle.textContent = isLoginMode ? "Pas encore de compte ? S'inscrire" : "Déjà un compte ? Se connecter";
         document.getElementById('auth-name-group').style.display = isLoginMode ? 'none' : 'block';
         document.getElementById('auth-handle-group').style.display = isLoginMode ? 'none' : 'block';
+        document.getElementById('auth-terms-group').style.display = isLoginMode ? 'none' : 'block';
+        document.getElementById('auth-forgot-pw').style.display = isLoginMode ? 'block' : 'none';
     });
 
     authForm.addEventListener('submit', async (e) => {
@@ -225,9 +227,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const password = document.getElementById('auth-password').value;
         const name = document.getElementById('auth-name').value;
         const handle = document.getElementById('auth-handle').value;
+        const termsAccepted = document.getElementById('auth-terms').checked;
+
+        if (!isLoginMode && !termsAccepted) {
+            return alert("Vous devez accepter les conditions d'utilisation.");
+        }
 
         const endpoint = isLoginMode ? '/auth/login' : '/auth/register';
-        const body = isLoginMode ? { email, password } : { name, handle, email, password };
+        const body = isLoginMode ? { email, password } : { name, handle, email, password, termsAccepted };
 
         try {
             const res = await fetch(`${API_URL}${endpoint}`, {
@@ -265,6 +272,48 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.removeItem('prisme_user');
             localStorage.removeItem('prisme_token');
             updateAuthUI();
+        });
+    }
+
+    // Theme Toggle
+    const btnThemeToggle = document.getElementById('btn-theme-toggle');
+    if (btnThemeToggle) {
+        btnThemeToggle.addEventListener('click', () => {
+            const root = document.documentElement;
+            const currentBg = getComputedStyle(root).getPropertyValue('--bg-color').trim();
+            if (currentBg === '#0a0a0a') {
+                root.style.setProperty('--bg-color', '#ffffff');
+                root.style.setProperty('--panel-bg', 'rgba(240, 240, 240, 0.6)');
+                root.style.setProperty('--border-color', '#e0e0e0');
+                root.style.setProperty('--text-primary', '#111111');
+                root.style.setProperty('--text-secondary', '#666666');
+                root.style.setProperty('--accent-color', '#000000');
+                root.style.setProperty('--hover-bg', 'rgba(0, 0, 0, 0.05)');
+            } else {
+                root.style.setProperty('--bg-color', '#0a0a0a');
+                root.style.setProperty('--panel-bg', 'rgba(20, 20, 20, 0.6)');
+                root.style.setProperty('--border-color', '#2a2a2a');
+                root.style.setProperty('--text-primary', '#f0f0f0');
+                root.style.setProperty('--text-secondary', '#888888');
+                root.style.setProperty('--accent-color', '#ffffff');
+                root.style.setProperty('--hover-bg', 'rgba(255, 255, 255, 0.05)');
+            }
+        });
+    }
+
+    // Forgot password mock
+    const btnForgotPw = document.getElementById('auth-forgot-pw');
+    if (btnForgotPw) {
+        btnForgotPw.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            if (!email) return alert("Veuillez saisir votre adresse email.");
+            await fetch(`${API_URL}/auth/forgot-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            alert("Si cet email existe, un lien a été envoyé.");
         });
     }
 
