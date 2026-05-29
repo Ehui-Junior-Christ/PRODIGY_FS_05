@@ -250,6 +250,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 1000);
 
+    // Toggle Email / Phone
+    const btnPhoneToggle = document.getElementById('btn-phone-toggle');
+    const emailGroup = document.getElementById('auth-email-group');
+    const phoneGroup = document.getElementById('auth-phone-group');
+    let isPhoneMode = false;
+
+    if (btnPhoneToggle) {
+        btnPhoneToggle.addEventListener('click', () => {
+            isPhoneMode = !isPhoneMode;
+            if (isPhoneMode) {
+                emailGroup.style.display = 'none';
+                phoneGroup.style.display = 'flex';
+                btnPhoneToggle.textContent = 'Email';
+                document.getElementById('btn-auth-submit').textContent = 'Valider le code SMS';
+            } else {
+                emailGroup.style.display = 'block';
+                phoneGroup.style.display = 'none';
+                btnPhoneToggle.textContent = 'Téléphone (SMS)';
+                document.getElementById('btn-auth-submit').textContent = 'Valider avec Email';
+            }
+        });
+    }
+
+    // Auth Submission (Email or SMS Code)
     authForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -257,8 +281,33 @@ document.addEventListener('DOMContentLoaded', () => {
             return alert("Firebase n'est pas encore initialisé. Veuillez ajouter le firebaseConfig dans index.html");
         }
 
-        const { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } = window.fbAuthMethods;
         const auth = window.firebaseAuth;
+
+        // Si on est en mode Téléphone, la soumission du form valide le code SMS
+        if (isPhoneMode) {
+            const smsCode = document.getElementById('auth-sms-code').value;
+            if (!smsCode || !window.confirmationResult) return alert("Veuillez entrer le code SMS");
+            try {
+                const result = await window.confirmationResult.confirm(smsCode);
+                const user = result.user;
+                // Enregistrer dans Turso (Handle/Name optionnel via Phone)
+                const name = document.getElementById('auth-name').value || "Utilisateur_" + user.phoneNumber.slice(-4);
+                const handle = document.getElementById('auth-handle').value || "user_" + user.phoneNumber.slice(-4);
+                await fetch(`${API_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, handle, email: user.phoneNumber, password: 'firebase_managed', termsAccepted: true })
+                }).catch(() => {}); // ignore si existe déjà
+                
+                authModal.style.display = 'none';
+                return; // l'écouteur onAuthStateChanged fera le reste
+            } catch (error) {
+                return alert("Code SMS invalide ou expiré.");
+            }
+        }
+
+        // --- Mode Email ---
+        const { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification } = window.fbAuthMethods;
 
         const email = document.getElementById('auth-email').value;
         const password = document.getElementById('auth-password').value;
@@ -356,6 +405,65 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Google Login
+    const btnGoogleLogin = document.getElementById('btn-google-login');
+    if (btnGoogleLogin) {
+        btnGoogleLogin.addEventListener('click', async () => {
+            if(!window.firebaseAuth || !window.fbAuthMethods) return alert("Firebase non configuré.");
+            try {
+                const provider = new window.fbAuthMethods.GoogleAuthProvider();
+                const result = await window.fbAuthMethods.signInWithPopup(window.firebaseAuth, provider);
+                const user = result.user;
+                
+                // Enregistrement auto dans Turso
+                await fetch(`${API_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        name: user.displayName, 
+                        handle: "google_" + user.uid.slice(0,6), 
+                        email: user.email, 
+                        password: 'firebase_managed', 
+                        termsAccepted: true 
+                    })
+                }).catch(() => {}); // ignore si existe déjà
+                
+                authModal.style.display = 'none';
+            } catch(e) {
+                alert("Erreur Google: " + e.message);
+            }
+        });
+    }
+
+    // Phone SMS Logic
+    setTimeout(() => {
+        if(window.fbAuthMethods && window.firebaseAuth && document.getElementById('btn-send-sms')) {
+            window.recaptchaVerifier = new window.fbAuthMethods.RecaptchaVerifier(window.firebaseAuth, 'recaptcha-container', {
+                'size': 'invisible' // ou 'normal'
+            });
+
+            document.getElementById('btn-send-sms').addEventListener('click', async () => {
+                const phoneNumber = document.getElementById('auth-phone').value;
+                if (!phoneNumber) return alert("Entrez un numéro de téléphone valide avec l'indicatif (ex: +33600000000)");
+                
+                try {
+                    const confirmationResult = await window.fbAuthMethods.signInWithPhoneNumber(window.firebaseAuth, phoneNumber, window.recaptchaVerifier);
+                    window.confirmationResult = confirmationResult;
+                    
+                    document.getElementById('btn-send-sms').style.display = 'none';
+                    document.getElementById('auth-sms-code').style.display = 'block';
+                    alert("Un SMS contenant un code à 6 chiffres a été envoyé au " + phoneNumber);
+                } catch(e) {
+                    console.error(e);
+                    alert("Erreur SMS: " + e.message);
+                    window.recaptchaVerifier.render().then(function(widgetId) {
+                      grecaptcha.reset(widgetId);
+                    });
+                }
+            });
+        }
+    }, 1500);
 
     // Initial render
     updateAuthUI();

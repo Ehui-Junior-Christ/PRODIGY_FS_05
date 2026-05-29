@@ -12,24 +12,24 @@
     <!-- Firebase SDKs -->
     <script type="module">
       import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-      import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+      import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
       import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
 
       // ⚠️ REMPLACER CECI PAR VOTRE VRAIE CONFIGURATION FIREBASE PLUS TARD
       const firebaseConfig = {
-        apiKey: "VOTRE_API_KEY",
-        authDomain: "VOTRE_PROJET.firebaseapp.com",
-        projectId: "VOTRE_PROJET_ID",
-        storageBucket: "VOTRE_PROJET.appspot.com",
-        messagingSenderId: "SENDER_ID",
-        appId: "APP_ID"
+  apiKey: "AIzaSyAjVje0jwrh0bUYah8vvFFqltuREii1wnM",
+        authDomain: "prisme-3bc01.firebaseapp.com",
+        projectId: "prisme-3bc01",
+        storageBucket: "prisme-3bc01.firebasestorage.app",
+        messagingSenderId: "636821728554",
+        appId: "1:636821728554:web:6d6e6085f6e297f2d54253"
       };
 
       // Exposer Firebase globalement pour app.js
       window.firebaseApp = initializeApp(firebaseConfig);
       window.firebaseAuth = getAuth(window.firebaseApp);
       window.firebaseStorage = getStorage(window.firebaseApp);
-      window.fbAuthMethods = { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut };
+      window.fbAuthMethods = { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, RecaptchaVerifier, signInWithPhoneNumber };
     </script>
 </head>
 <body>
@@ -153,8 +153,17 @@
                 <div id="auth-handle-group" style="display:none;">
                     <input type="text" id="auth-handle" placeholder="@pseudonyme" class="input-field">
                 </div>
-                <input type="email" id="auth-email" placeholder="Adresse email" class="input-field" required>
-                <input type="password" id="auth-password" placeholder="Mot de passe" class="input-field" required>
+                <div id="auth-email-group">
+                    <input type="email" id="auth-email" placeholder="Adresse email" class="input-field">
+                    <input type="password" id="auth-password" placeholder="Mot de passe" class="input-field">
+                </div>
+
+                <div id="auth-phone-group" style="display:none; flex-direction:column; gap:8px;">
+                    <input type="tel" id="auth-phone" placeholder="Numéro (ex: +33612345678)" class="input-field">
+                    <div id="recaptcha-container"></div>
+                    <button type="button" class="btn-secondary" id="btn-send-sms">Envoyer le code SMS</button>
+                    <input type="text" id="auth-sms-code" placeholder="Code à 6 chiffres" class="input-field" style="display:none;">
+                </div>
                 
                 <div id="auth-terms-group" style="display:none; font-size: 12px; color: var(--text-secondary); margin: 8px 0;">
                     <label><input type="checkbox" id="auth-terms"> J'accepte les conditions d'utilisation</label>
@@ -162,11 +171,11 @@
                 
                 <a href="#" id="auth-forgot-pw" style="text-align: right; color: var(--text-secondary); text-decoration: none; font-size: 12px; margin-bottom: 8px;">Mot de passe oublié ?</a>
 
-                <button type="submit" class="btn-primary" style="width: 100%; margin-bottom: 16px;">Valider</button>
+                <button type="submit" class="btn-primary" id="btn-auth-submit" style="width: 100%; margin-bottom: 16px;">Valider avec Email</button>
                 
                 <div style="display:flex; gap: 8px; margin-bottom: 16px;">
-                    <button type="button" class="btn-secondary" style="flex:1; font-size:12px;" onclick="alert('Configuration Google API OAuth requise (Backend/Firebase)')">Google</button>
-                    <button type="button" class="btn-secondary" style="flex:1; font-size:12px;" onclick="alert('Configuration Apple Developer requise')">Apple</button>
+                    <button type="button" class="btn-secondary" id="btn-google-login" style="flex:1; font-size:12px; background:white; color:black;">Google</button>
+                    <button type="button" class="btn-secondary" id="btn-phone-toggle" style="flex:1; font-size:12px;">Téléphone (SMS)</button>
                 </div>
 
                 <div id="auth-verification-msg" style="display:none; color:#ff4757; font-size:13px; text-align:center; margin-bottom:16px;">
