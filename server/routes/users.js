@@ -42,6 +42,32 @@ router.get("/me", requireAuth, async (req, res) => {
   }
 });
 
+// PUT /api/users/me — modifier le profil de l'utilisateur connecté
+router.put("/me", requireAuth, async (req, res) => {
+  try {
+    const { name, handle } = req.body;
+    if (!name || !handle) return res.status(400).json({ error: "Nom et handle requis" });
+
+    // Vérifier si le handle est déjà pris par qqn d'autre
+    const check = await client.execute({
+      sql: "SELECT id FROM users WHERE handle = ? AND id != ?",
+      args: [handle, req.user.id]
+    });
+    if (check.rows.length > 0) return res.status(409).json({ error: "Ce handle est déjà utilisé" });
+
+    await client.execute({
+      sql: "UPDATE users SET name = ?, handle = ? WHERE id = ?",
+      args: [name, handle, req.user.id]
+    });
+    
+    // Renvoyer le nouveau token (facultatif si le front se base sur les requêtes, mais utile pour la consistance)
+    const newToken = jwt.sign({ id: req.user.id, handle, name }, JWT_SECRET);
+    res.json({ message: "Profil mis à jour", token: newToken, user: { name, handle } });
+  } catch (e) {
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 // GET /api/users/:handle — profil public d'un utilisateur
 router.get("/:handle", optionalAuth, async (req, res) => {
   try {

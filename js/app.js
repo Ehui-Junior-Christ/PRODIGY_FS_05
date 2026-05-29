@@ -653,6 +653,68 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // =============================================
+    // ÉDITION DU PROFIL
+    // =============================================
+    const btnEditProfile = document.getElementById('btn-edit-profile');
+    const editProfileModal = document.getElementById('edit-profile-modal');
+    const closeEditProfileModal = document.getElementById('close-edit-profile-modal');
+    const cancelEditProfile = document.getElementById('cancel-edit-profile');
+    const saveEditProfile = document.getElementById('save-edit-profile');
+    
+    if (btnEditProfile) {
+        btnEditProfile.addEventListener('click', () => {
+            if (!state.user) return;
+            document.getElementById('edit-profile-name').value = state.user.name || '';
+            document.getElementById('edit-profile-handle').value = state.user.handle || '';
+            editProfileModal.style.display = 'flex';
+        });
+    }
+
+    const closeEditModal = () => editProfileModal.style.display = 'none';
+    if (closeEditProfileModal) closeEditProfileModal.addEventListener('click', closeEditModal);
+    if (cancelEditProfile) cancelEditProfile.addEventListener('click', closeEditModal);
+
+    if (saveEditProfile) {
+        saveEditProfile.addEventListener('click', async () => {
+            if (!state.token) return;
+            const newName = document.getElementById('edit-profile-name').value.trim();
+            const newHandle = document.getElementById('edit-profile-handle').value.trim();
+            if (!newName || !newHandle) {
+                alert("Le nom et le handle sont obligatoires.");
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/users/me`, {
+                    method: 'PUT',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${state.token}` 
+                    },
+                    body: JSON.stringify({ name: newName, handle: newHandle })
+                });
+                
+                const data = await res.json();
+                if (res.ok) {
+                    state.user.name = data.user.name;
+                    state.user.handle = data.user.handle;
+                    if (data.token) {
+                        state.token = data.token;
+                        localStorage.setItem('prisme_token', data.token);
+                    }
+                    localStorage.setItem('prisme_user', JSON.stringify(state.user));
+                    closeEditModal();
+                    fetchAndRenderProfile();
+                } else {
+                    alert(data.error || "Erreur lors de la mise à jour.");
+                }
+            } catch (e) {
+                alert("Erreur de connexion au serveur.");
+            }
+        });
+    }
+
     // Rendre navigateTo accessible globalement (pour les onclick inline)
     window.navigateTo = navigateTo;
 
