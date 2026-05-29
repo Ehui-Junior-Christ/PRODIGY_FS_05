@@ -78,6 +78,17 @@ export const initDb = async () => {
       FOREIGN KEY (receiver_id) REFERENCES users (id)
     );
   `);
+
+  // Migrations — add new profile columns if they don't exist
+  const migrations = [
+    "ALTER TABLE users ADD COLUMN bio TEXT DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT ''",
+    "ALTER TABLE users ADD COLUMN cover_url TEXT DEFAULT ''",
+  ];
+  for (const sql of migrations) {
+    try { await client.execute(sql); } catch (e) { /* column already exists */ }
+  }
+
   console.log("Database initialized");
 };
 

@@ -568,14 +568,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 const user = await res.json();
                 if (nameEl) nameEl.textContent = user.name;
                 if (handleEl) handleEl.textContent = '@' + user.handle;
-                if (avatarEl) avatarEl.style.backgroundImage = `url('https://api.dicebear.com/7.x/avataaars/svg?seed=${user.handle}')`;
+
+                // Avatar: use custom URL if set, otherwise Dicebear
+                const avatarUrl = user.avatar_url
+                    ? user.avatar_url
+                    : `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.handle}`;
+                if (avatarEl) avatarEl.style.backgroundImage = `url('${avatarUrl}')`;
+
+                // Cover photo
+                const coverEl = document.getElementById('profile-cover');
+                if (coverEl && user.cover_url) {
+                    coverEl.style.backgroundImage = `url('${user.cover_url}')`;
+                } else if (coverEl) {
+                    coverEl.style.backgroundImage = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)';
+                }
+
+                // Bio
+                const bioEl = document.getElementById('profile-bio');
+                if (bioEl) bioEl.textContent = user.bio || '';
 
                 document.getElementById('profile-angles').textContent = user.angles_count || 0;
                 document.getElementById('profile-followers').textContent = user.followers_count || 0;
                 document.getElementById('profile-following').textContent = user.following_count || 0;
 
-                // Handle Buttons
+                // Sync to state if own profile
                 const isOwnProfile = state.user && state.user.handle === user.handle;
+                if (isOwnProfile) {
+                    state.user.bio = user.bio || '';
+                    state.user.avatar_url = user.avatar_url || '';
+                    state.user.cover_url = user.cover_url || '';
+                    localStorage.setItem('prisme_user', JSON.stringify(state.user));
+                }
                 if (btnEditProfile) btnEditProfile.style.display = isOwnProfile ? 'block' : 'none';
                 if (btnFollowProfile) {
                     if (isOwnProfile || !state.token) {
@@ -643,13 +666,118 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeEditProfileModal = document.getElementById('close-edit-profile-modal');
     const cancelEditProfile = document.getElementById('cancel-edit-profile');
     const saveEditProfile = document.getElementById('save-edit-profile');
-    
+
+    // Image upload helpers
+    let pendingAvatarUrl = '';
+    let pendingCoverUrl = '';
+
+    function readFileAsDataURL(file, maxWidth = 800) {
+        return new Promise((resolve, reject) => {
+            if (file.size > 2 * 1024 * 1024) {
+                reject(new Error('Fichier trop volumineux (max 2 Mo)'));
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // Resize image to save bandwidth
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height;
+                    if (w > maxWidth) { h = (h * maxWidth) / w; w = maxWidth; }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', 0.8));
+                };
+                img.onerror = reject;
+                img.src = e.target.result;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // Open edit modal
     if (btnEditProfile) {
         btnEditProfile.addEventListener('click', () => {
             if (!state.user) return;
             document.getElementById('edit-profile-name').value = state.user.name || '';
             document.getElementById('edit-profile-handle').value = state.user.handle || '';
+            document.getElementById('edit-profile-bio').value = state.user.bio || '';
+
+            // Set avatar preview
+            const avatarPreview = document.getElementById('edit-avatar-preview');
+            if (state.user.avatar_url) {
+                avatarPreview.style.backgroundImage = `url('${state.user.avatar_url}')`;
+            } else {
+                avatarPreview.style.backgroundImage = `url('https://api.dicebear.com/7.x/avataaars/svg?seed=${state.user.handle}')`;
+            }
+
+            // Set cover preview
+            const coverPreview = document.getElementById('edit-cover-preview');
+            if (state.user.cover_url) {
+                coverPreview.style.backgroundImage = `url('${state.user.cover_url}')`;
+            }
+
+            pendingAvatarUrl = state.user.avatar_url || '';
+            pendingCoverUrl = state.user.cover_url || '';
+
             editProfileModal.style.display = 'flex';
+        });
+    }
+
+    // Avatar upload handlers
+    const avatarUploadInput = document.getElementById('edit-avatar-upload');
+    const btnChangeAvatar = document.getElementById('btn-change-avatar');
+    const editAvatarPreview = document.getElementById('edit-avatar-preview');
+
+    if (btnChangeAvatar && avatarUploadInput) {
+        btnChangeAvatar.addEventListener('click', (e) => { e.preventDefault(); avatarUploadInput.click(); });
+    }
+    if (editAvatarPreview && avatarUploadInput) {
+        editAvatarPreview.addEventListener('click', () => avatarUploadInput.click());
+        // Hover effect
+        editAvatarPreview.addEventListener('mouseenter', () => {
+            const overlay = editAvatarPreview.querySelector('.avatar-hover-overlay');
+            if (overlay) overlay.style.opacity = '1';
+        });
+        editAvatarPreview.addEventListener('mouseleave', () => {
+            const overlay = editAvatarPreview.querySelector('.avatar-hover-overlay');
+            if (overlay) overlay.style.opacity = '0';
+        });
+    }
+    if (avatarUploadInput) {
+        avatarUploadInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const dataUrl = await readFileAsDataURL(file, 400);
+                pendingAvatarUrl = dataUrl;
+                if (editAvatarPreview) editAvatarPreview.style.backgroundImage = `url('${dataUrl}')`;
+            } catch (err) {
+                alert(err.message || 'Erreur de lecture du fichier');
+            }
+        });
+    }
+
+    // Cover upload handlers
+    const coverUploadInput = document.getElementById('edit-cover-upload');
+    const editCoverPreview = document.getElementById('edit-cover-preview');
+
+    if (editCoverPreview && coverUploadInput) {
+        editCoverPreview.addEventListener('click', () => coverUploadInput.click());
+    }
+    if (coverUploadInput) {
+        coverUploadInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const dataUrl = await readFileAsDataURL(file, 1200);
+                pendingCoverUrl = dataUrl;
+                if (editCoverPreview) editCoverPreview.style.backgroundImage = `url('${dataUrl}')`;
+            } catch (err) {
+                alert(err.message || 'Erreur de lecture du fichier');
+            }
         });
     }
 
@@ -662,10 +790,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!state.token) return;
             const newName = document.getElementById('edit-profile-name').value.trim();
             const newHandle = document.getElementById('edit-profile-handle').value.trim();
+            const newBio = document.getElementById('edit-profile-bio').value.trim();
             if (!newName || !newHandle) {
                 alert("Le nom et le handle sont obligatoires.");
                 return;
             }
+
+            saveEditProfile.textContent = 'Enregistrement...';
+            saveEditProfile.disabled = true;
 
             try {
                 const res = await fetch(`${API_URL}/users/me`, {
@@ -674,13 +806,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${state.token}` 
                     },
-                    body: JSON.stringify({ name: newName, handle: newHandle })
+                    body: JSON.stringify({ 
+                        name: newName, 
+                        handle: newHandle, 
+                        bio: newBio,
+                        avatar_url: pendingAvatarUrl,
+                        cover_url: pendingCoverUrl
+                    })
                 });
                 
                 const data = await res.json();
                 if (res.ok) {
                     state.user.name = data.user.name;
                     state.user.handle = data.user.handle;
+                    state.user.bio = data.user.bio;
+                    state.user.avatar_url = data.user.avatar_url;
+                    state.user.cover_url = data.user.cover_url;
                     if (data.token) {
                         state.token = data.token;
                         localStorage.setItem('prisme_token', data.token);
@@ -693,6 +834,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (e) {
                 alert("Erreur de connexion au serveur.");
+            } finally {
+                saveEditProfile.textContent = 'Enregistrer';
+                saveEditProfile.disabled = false;
             }
         });
     }
