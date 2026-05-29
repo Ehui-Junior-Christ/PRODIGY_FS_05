@@ -69,6 +69,38 @@ router.put("/me", requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/users/search?q=... — recherche de personnes
+router.get("/search", optionalAuth, async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim().toLowerCase();
+    if (q.length < 1) return res.json([]);
+
+    const args = [`%${q}%`];
+    let excludeSelf = "";
+    if (req.user?.id) {
+      excludeSelf = "AND u.id != ?";
+      args.push(req.user.id);
+    }
+
+    const result = await client.execute({
+      sql: `SELECT u.id, u.name, u.handle, u.avatar_url, u.bio,
+             (SELECT COUNT(*) FROM angles WHERE author_id = u.id) as angles_count,
+             (SELECT COUNT(*) FROM follows WHERE following_id = u.id) as followers_count,
+             ${req.user?.id ? `(SELECT COUNT(*) FROM follows WHERE follower_id = ? AND following_id = u.id)` : "0"} as isFollowing
+            FROM users u
+            WHERE (lower(u.name) LIKE ? OR lower(u.handle) LIKE ?) ${excludeSelf}
+            ORDER BY followers_count DESC, angles_count DESC, u.created_at DESC
+            LIMIT 10`,
+      args: req.user?.id ? [req.user.id, `%${q}%`, `%${q}%`, req.user.id] : [`%${q}%`, `%${q}%`]
+    });
+
+    res.json(result.rows.map(row => ({ ...row, isFollowing: Boolean(row.isFollowing) })));
+  } catch (e) {
+    console.error("GET /api/users/search Error:", e);
+    res.status(500).json({ error: "Erreur serveur" });
+  }
+});
+
 // GET /api/users/:handle — profil public d'un utilisateur
 router.get("/:handle", optionalAuth, async (req, res) => {
   try {

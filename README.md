@@ -1,29 +1,31 @@
-# Prisme - Social Media Platform
+# Prisme - Plateforme sociale full-stack
 
-Prisme est une plateforme sociale full-stack construite pour la Task 05 du programme Full-Stack Web Development de Prodigy InfoTech. L'application permet aux utilisateurs de partager des publications appelées Angles, de les organiser par Prismes, d'interagir avec la communauté et de gérer un profil personnalisé.
+Prisme est une application sociale full-stack developpee pour le cinquieme et dernier projet du stage Full-Stack Web Development chez Prodigy InfoTech. Elle permet de publier des idees sous forme d'Angles, de les organiser par Prismes, de suivre d'autres utilisateurs, d'interagir avec les publications et d'echanger en messagerie temps reel.
 
-## Fonctionnalites
+## Fonctionnalites principales
 
 - Authentification par e-mail et mot de passe avec JWT.
-- Inscription avec verification d'e-mail lorsque le service mail est configure.
-- Connexion sociale Google et Apple cote interface, avec synchronisation serveur via une route sociale dediee.
-- Creation de publications avec texte, categorie et image integree.
-- Fil d'actualite dynamique avec likes, commentaires et suppression de ses propres publications.
-- Page profil avec avatar, couverture, bio, statistiques et affichage des publications avec leurs images.
-- Systeme de follow entre utilisateurs.
-- Notifications pour les likes, les nouveaux commentaires et les nouveaux abonnes.
-- Messagerie en temps reel avec Socket.IO.
-- Pages dediees pour l'accueil, les tendances, les notifications, le profil et les messages.
+- Verification d'e-mail et reinitialisation de mot de passe par e-mail lorsque Nodemailer est configure.
+- Connexion sociale Google, Apple et telephone via Firebase cote interface, synchronisee avec le backend.
+- Creation, modification, suppression, partage et republication d'Angles.
+- Fil d'actualite dynamique avec likes, commentaires et medias integres.
+- Recherche globale sur les personnes et les publications.
+- Profils utilisateurs avec avatar, couverture, bio, statistiques et publications.
+- Systeme d'abonnement entre utilisateurs.
+- Suggestions de comptes basees sur les affinites, les abonnements et les centres d'interet.
+- Notifications pour les likes, commentaires et nouveaux abonnes.
+- Messagerie temps reel avec Socket.IO, recherche de personnes, avatars et conversations persistantes.
 - Interface responsive en HTML, CSS et JavaScript vanilla.
 
-## Stack Technique
+## Stack technique
 
 - Frontend: HTML5, CSS3, JavaScript ES6.
 - Backend: Node.js, Express.js.
 - Base de donnees: Turso / LibSQL.
-- Authentification: JSON Web Tokens, bcryptjs.
+- Authentification: JWT et bcryptjs.
 - Temps reel: Socket.IO.
 - E-mails: Nodemailer.
+- Authentification sociale: Firebase cote client.
 
 ## Installation
 
@@ -33,7 +35,7 @@ Prisme est une plateforme sociale full-stack construite pour la Task 05 du progr
 npm install
 ```
 
-2. Creer un fichier `.env` a la racine:
+2. Creer un fichier `.env` a la racine du projet:
 
 ```env
 PORT=3000
@@ -48,15 +50,47 @@ MAIL_PASS=votre_mot_de_passe_application
 3. Lancer le serveur:
 
 ```bash
-node server/index.js
+npm start
 ```
 
-4. Ouvrir le frontend avec Live Server ou un serveur statique sur `http://localhost:5501`.
+4. Ouvrir l'application:
 
-## Description Marketing
+- Backend et pages servies par Express: `http://localhost:3000`
+- Ou frontend avec Live Server: `http://localhost:5501`
 
-Prisme transforme le reseau social classique en un espace d'expression organise autour des perspectives. Les utilisateurs publient des Angles, explorent des sujets via des Prismes, echangent en commentaires, suivent des profils et recoivent des notifications en temps reel sur les interactions importantes. Le projet met l'accent sur une experience claire, moderne et communautaire, ideale pour partager des idees, construire une audience et decouvrir des conversations pertinentes.
+## Structure du projet
+
+```text
+.
+├── index.html
+├── messages.html
+├── notifications.html
+├── profile.html
+├── trending.html
+├── css/
+│   └── style.css
+├── js/
+│   ├── app.js
+│   └── firebase-init.js
+└── server/
+    ├── db.js
+    ├── index.js
+    ├── emailService.js
+    └── routes/
+        ├── angles.js
+        ├── auth.js
+        ├── notifications.js
+        └── users.js
+```
+
+## Description LinkedIn
+
+Je suis heureux de presenter Prisme, mon cinquieme et dernier projet realise dans le cadre de mon stage Full-Stack Web Development chez Prodigy InfoTech.
+
+Prisme est une plateforme sociale full-stack qui permet aux utilisateurs de publier des idees, de suivre des profils, d'interagir avec des publications et d'echanger en messagerie temps reel grace a Socket.IO. Le projet integre une authentification JWT, une base de donnees Turso/LibSQL, des profils personnalisables, des notifications, une recherche globale et des suggestions de comptes basees sur les affinites.
+
+Ce projet m'a permis de consolider mes competences en backend Node.js/Express, gestion de base de donnees, authentification, temps reel, architecture d'API et experience utilisateur responsive.
 
 ## Auteur
 
-Developpe par Ehui Junior Christ dans le cadre de la derniere tache du stage Full-Stack Web Development chez Prodigy InfoTech.
+Developpe par Ehui Junior Christ dans le cadre du stage Full-Stack Web Development chez Prodigy InfoTech.

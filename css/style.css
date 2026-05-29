@@ -531,6 +531,47 @@ body::before {
     box-shadow: var(--shadow-lift);
 }
 
+.search-results-block {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.search-results-block h2 {
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.user-result-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    background: var(--panel-bg);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.user-result-card:hover {
+    background: var(--panel-bg-hover);
+    border-color: var(--border-color-hover);
+    transform: translateY(-1px);
+}
+
+.user-result-card > div:nth-child(2) {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-result-card p {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
 .post-header {
     display: flex;
     align-items: center;
@@ -721,6 +762,12 @@ body::before {
 
 .btn-follow:hover {
     opacity: 0.8;
+}
+
+.btn-follow.is-following {
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
 }
 
 /* Modal */
@@ -1004,6 +1051,53 @@ select.input-field option {
 .msg-conv:hover,
 .msg-conv.active-conv {
     background: var(--hover-bg) !important;
+}
+
+.message-suggestion-title {
+    padding: 4px 4px 10px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.message-person-result {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid transparent;
+    border-radius: 14px;
+    background: transparent;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.message-person-result:hover {
+    background: var(--hover-bg);
+    border-color: var(--border-color);
+    transform: translateY(-1px);
+}
+
+.message-person-result .avatar {
+    flex-shrink: 0;
+}
+
+.message-person-result strong,
+.message-person-result span,
+.message-person-result small {
+    display: block;
+}
+
+.message-person-result span,
+.message-person-result small {
+    color: var(--text-secondary);
+    font-size: 12px;
 }
 
 #chat-messages {

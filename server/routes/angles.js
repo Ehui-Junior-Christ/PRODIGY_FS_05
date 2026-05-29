@@ -38,7 +38,7 @@ router.get("/", async (req, res) => {
     }
 
     const result = await client.execute(`
-      SELECT a.id, a.content, a.media_url, a.created_at, u.name as author, u.handle as author_handle, p.name as prisme,
+      SELECT a.id, a.content, a.media_url, a.created_at, u.name as author, u.handle as author_handle, u.avatar_url, p.name as prisme,
              (SELECT COUNT(*) FROM likes WHERE angle_id = a.id) as likes,
              (SELECT COUNT(*) FROM comments WHERE angle_id = a.id) as comments
       FROM angles a JOIN users u ON a.author_id = u.id
@@ -51,7 +51,7 @@ router.get("/", async (req, res) => {
         const likeCheck = await client.execute({ sql: "SELECT 1 FROM likes WHERE user_id = ? AND angle_id = ?", args: [userId, row.id] });
         isLiked = likeCheck.rows.length > 0;
       }
-      return { id: row.id, author: row.author, author_handle: row.author_handle, prisme: row.prisme, content: row.content, media_url: row.media_url, likes: row.likes, comments: row.comments, isLiked, created_at: row.created_at };
+      return { id: row.id, author: row.author, author_handle: row.author_handle, avatar_url: row.avatar_url, prisme: row.prisme, content: row.content, media_url: row.media_url, likes: row.likes, comments: row.comments, isLiked, created_at: row.created_at };
     }));
     res.json(posts);
   } catch (error) { res.status(500).json({ error: "Erreur serveur" }); }
@@ -87,6 +87,27 @@ router.post("/:id/like", authenticateToken, async (req, res) => {
   } else {
     await client.execute({ sql: "INSERT INTO likes (user_id, angle_id) VALUES (?, ?)", args: [req.user.id, req.params.id] });
     res.json({ liked: true });
+  }
+});
+
+router.put("/:id", authenticateToken, async (req, res) => {
+  try {
+    const content = String(req.body.content || "").trim();
+    if (!content) return res.status(400).json({ error: "Le contenu est vide" });
+
+    const check = await client.execute({ sql: "SELECT author_id FROM angles WHERE id = ?", args: [req.params.id] });
+    if (check.rows.length === 0) return res.status(404).json({ error: "Angle introuvable" });
+    if (check.rows[0].author_id !== req.user.id) return res.status(403).json({ error: "Non autorise" });
+
+    await client.execute({
+      sql: "UPDATE angles SET content = ? WHERE id = ?",
+      args: [content, req.params.id]
+    });
+
+    res.json({ message: "Angle modifie" });
+  } catch (error) {
+    console.error("PUT /api/angles Error:", error);
+    res.status(500).json({ error: "Erreur lors de la modification" });
   }
 });
 

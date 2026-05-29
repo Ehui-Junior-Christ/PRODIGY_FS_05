@@ -43,6 +43,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.handle || user?.author_handle || 'user')}`;
     }
 
+    function userAvatarUrl(user) {
+        return user?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user?.handle || user?.name || 'user')}`;
+    }
+
+    function affinityText(user) {
+        if (user?.i_follow && user?.follows_me) return 'Affinite forte';
+        if (user?.i_follow) return 'Vous le suivez';
+        if (user?.follows_me) return 'Vous suit';
+        if (Number(user?.affinity_score || 0) > 0) return `${user.affinity_score} affinite(s)`;
+        return `${user?.followers_count || 0} abonne(s)`;
+    }
+
     function emptyState(icon, title, body) {
         return `
             <div class="empty-state">
@@ -154,10 +166,84 @@ document.addEventListener('DOMContentLoaded', () => {
     if(btnLogout)       btnLogout.addEventListener('click', doLogout);
     if(btnLogoutMobile) btnLogoutMobile.addEventListener('click', doLogout);
 
+    async function renderGlobalSearchResults() {
+        const container = feedContainer;
+        if (!container || currentView !== 'home') return;
+
+        const query = state.searchQuery.trim();
+        if (!query) {
+            renderPosts();
+            return;
+        }
+
+        const localPosts = state.posts.filter(post => [
+            post.author,
+            post.author_handle,
+            post.prisme,
+            post.content,
+            ...(post.tags || [])
+        ].some(value => String(value || '').toLowerCase().includes(query.toLowerCase())));
+
+        let users = [];
+        try {
+            const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
+            const res = await fetch(`${API_URL}/users/search?q=${encodeURIComponent(query)}`, { headers });
+            if (res.ok) users = await res.json();
+        } catch (error) {
+            console.error("Search users failed", error);
+        }
+
+        if (users.length === 0 && localPosts.length === 0) {
+            container.innerHTML = emptyState('ph ph-magnifying-glass', 'Aucun resultat', 'Essayez un nom, un @pseudo, un prisme ou un mot dans une publication.');
+            return;
+        }
+
+        const userResults = users.length ? `
+            <section class="search-results-block">
+                <h2>Personnes</h2>
+                ${users.map(user => `
+                    <article class="user-result-card" onclick="navigateTo('profile', 'user=${encodeURIComponent(user.handle)}')">
+                        <div class="avatar" style="background-image:url('${userAvatarUrl(user)}')"></div>
+                        <div>
+                            <strong>${escapeHtml(user.name)}</strong>
+                            <p>@${escapeHtml(user.handle)} · ${user.followers_count || 0} abonnés · ${user.angles_count || 0} Angles</p>
+                            ${user.bio ? `<p>${escapeHtml(user.bio)}</p>` : ''}
+                        </div>
+                        <button class="${user.isFollowing ? 'btn-secondary' : 'btn-primary'}" onclick="event.stopPropagation(); toggleFollowUser(${user.id}, this)">
+                            ${user.isFollowing ? 'Abonné' : 'Suivre'}
+                        </button>
+                    </article>
+                `).join('')}
+            </section>
+        ` : '';
+
+        const postResults = localPosts.length ? `
+            <section class="search-results-block">
+                <h2>Publications</h2>
+                ${localPosts.map(post => `
+                    <article class="post" data-id="${post.id}">
+                        <header class="post-header" style="cursor:pointer;" onclick="navigateTo('profile', 'user=${post.author_handle}')">
+                            <div class="avatar" style="background-image: url('${avatarUrl(post)}')"></div>
+                            <div class="post-meta" style="flex:1;">
+                                <h3>${escapeHtml(post.author)} <span style="font-weight:normal; font-size:13px; color:var(--text-secondary);">@${escapeHtml(post.author_handle)}</span> <span class="prisme-tag">dans #${escapeHtml(post.prisme || 'General')}</span></h3>
+                                <p>${post.created_at ? new Date(post.created_at).toLocaleDateString() : ''}</p>
+                            </div>
+                        </header>
+                        <p class="post-content">${escapeHtml(post.content)}</p>
+                    </article>
+                `).join('')}
+            </section>
+        ` : '';
+
+        container.innerHTML = userResults + postResults;
+    }
+
     if (searchInput) {
+        let searchTimer;
         searchInput.addEventListener('input', () => {
             state.searchQuery = searchInput.value;
-            if (currentView === 'home') renderPosts();
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(renderGlobalSearchResults, 180);
         });
     }
 
@@ -177,9 +263,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchSidebar() {
         try {
+            const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
             const [trendRes, suggRes] = await Promise.all([
                 fetch(`${API_URL}/trending`),
-                fetch(`${API_URL}/suggestions`)
+                fetch(`${API_URL}/suggestions`, { headers })
             ]);
             if (trendRes.ok) state.trending = await trendRes.json();
             if (suggRes.ok) state.suggestions = await suggRes.json();
@@ -279,15 +366,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (suggestionsList) {
             suggestionsList.innerHTML = state.suggestions.length
                 ? state.suggestions.map(s => `
-                    <li class="suggestion-item">
+                    <li class="suggestion-item" onclick="navigateTo('profile', 'user=${encodeURIComponent(s.handle)}')">
                         <div class="suggestion-info">
-                            <div class="avatar" style="background-image: url('https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(s.name || s.handle || 'user')}')"></div>
+                            <div class="avatar" style="background-image: url('${userAvatarUrl(s)}')"></div>
                             <div>
                                 <p>${escapeHtml(s.name)}</p>
-                                <p style="font-size: 12px; color: var(--text-secondary)">${escapeHtml(s.handle)}</p>
+                                <p style="font-size: 12px; color: var(--text-secondary)">@${escapeHtml(s.handle)}</p>
+                                <p style="font-size: 11px; color: var(--text-secondary)">${Number(s.affinity_score || 0) > 0 ? `${s.affinity_score} affinité(s)` : `${s.followers_count || 0} abonné(s)`}</p>
                             </div>
                         </div>
-                        <button class="btn-follow">Suivre</button>
+                        <button class="btn-follow ${s.isFollowing ? 'is-following' : ''}" onclick="event.stopPropagation(); toggleFollowUser(${s.id}, this)">${s.isFollowing ? 'Abonné' : 'Suivre'}</button>
                     </li>
                 `).join('')
                 : '<li class="suggestion-item"><div><p>Pas de suggestion</p><p style="font-size:12px;color:var(--text-secondary)">Revenez apres quelques inscriptions.</p></div></li>';
@@ -314,6 +402,33 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.error("Failed to like", e);
+        }
+    };
+
+    window.toggleFollowUser = async (userId, button) => {
+        if (!state.token) return alert("Veuillez vous connecter pour suivre quelqu'un.");
+        const originalText = button?.textContent;
+        if (button) {
+            button.disabled = true;
+            button.textContent = '...';
+        }
+        try {
+            const res = await fetch(`${API_URL}/users/${userId}/follow`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${state.token}` }
+            });
+            if (!res.ok) throw new Error("follow failed");
+            const data = await res.json();
+            if (button) {
+                button.textContent = data.following ? 'Abonné' : 'Suivre';
+                button.className = data.following ? 'btn-secondary' : 'btn-primary';
+            }
+            await fetchSidebar();
+        } catch (error) {
+            if (button) button.textContent = originalText || 'Suivre';
+            alert("Impossible de mettre à jour l'abonnement.");
+        } finally {
+            if (button) button.disabled = false;
         }
     };
 
@@ -402,7 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok) {
                 state.posts = state.posts.filter(p => p.id !== id);
                 renderPosts();
-                if (state.currentView === 'profile') {
+                if (currentView === 'profile') {
                     // Refresh profile to update angles count
                     const userParam = new URLSearchParams(window.location.search).get('user') || state.user.handle;
                     fetchAndRenderProfile(userParam);
@@ -427,18 +542,84 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.editPost = (id) => {
-        alert("La fonctionnalité 'Modifier' sera bientôt disponible !");
-        window.togglePostOptions(id);
+        (async () => {
+            window.togglePostOptions(id);
+            if (!state.token) return alert("Veuillez vous connecter.");
+            const post = state.posts.find(p => Number(p.id) === Number(id));
+            if (!post) return alert("Angle introuvable.");
+            const content = prompt("Modifier votre Angle", post.content || "");
+            if (content === null) return;
+            const nextContent = content.trim();
+            if (!nextContent) return alert("Le contenu ne peut pas etre vide.");
+            try {
+                const res = await fetch(`${API_URL}/angles/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${state.token}`
+                    },
+                    body: JSON.stringify({ content: nextContent })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) return alert(data.error || "Modification impossible.");
+                post.content = nextContent;
+                renderPosts();
+            } catch (error) {
+                alert("Erreur reseau pendant la modification.");
+            }
+        })();
+        return;
     };
 
     window.repostAngle = (id) => {
-        alert("La fonctionnalité 'Republier' sera bientôt disponible !");
-        window.togglePostOptions(id);
+        (async () => {
+            window.togglePostOptions(id);
+            if (!state.token) return alert("Veuillez vous connecter pour republier.");
+            const post = state.posts.find(p => Number(p.id) === Number(id));
+            if (!post) return alert("Angle introuvable.");
+            try {
+                const res = await fetch(`${API_URL}/angles`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${state.token}`
+                    },
+                    body: JSON.stringify({
+                        content: `Repost de @${post.author_handle}: ${post.content}`,
+                        prisme: post.prisme || 'General',
+                        mediaUrl: post.media_url || null
+                    })
+                });
+                if (!res.ok) return alert("Repost impossible.");
+                await fetchPosts();
+            } catch (error) {
+                alert("Erreur reseau pendant le repost.");
+            }
+        })();
+        return;
     };
 
     window.shareAngle = (id) => {
-        alert("La fonctionnalité 'Partager' sera bientôt disponible !");
-        window.togglePostOptions(id);
+        (async () => {
+            window.togglePostOptions(id);
+            const post = state.posts.find(p => Number(p.id) === Number(id));
+            if (!post) return alert("Angle introuvable.");
+            const shareUrl = `${window.location.origin}${window.location.pathname}?angle=${encodeURIComponent(id)}`;
+            const shareText = `${post.author} sur Prisme: ${post.content}`;
+            try {
+                if (navigator.share) {
+                    await navigator.share({ title: 'Prisme', text: shareText, url: shareUrl });
+                } else if (navigator.clipboard) {
+                    await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+                    alert("Lien copie dans le presse-papiers.");
+                } else {
+                    prompt("Copiez ce lien", shareUrl);
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') alert("Partage impossible pour le moment.");
+            }
+        })();
+        return;
     };
 
     // Close options menu when clicking outside
@@ -1195,7 +1376,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="messages-sidebar-col" style="width:280px; border-right:1px solid var(--border-color); display:flex; flex-direction:column; flex-shrink:0;">
                     <div style="padding:16px; border-bottom:1px solid var(--border-color);">
                         <h2 style="font-size:18px; margin-bottom:12px;">Messages</h2>
-                        <div class="search-bar" style="width:100%;"><i class="ph ph-magnifying-glass"></i><input type="text" id="chat-search" placeholder="Chercher @handle…" style="width:100%;"></div>
+                        <div class="search-bar" style="width:100%;"><i class="ph ph-magnifying-glass"></i><input type="text" id="chat-search" placeholder="Rechercher une personne..." style="width:100%;"></div>
                     </div>
                     <div id="conv-list" style="overflow-y:auto; flex:1; padding:12px;">
                         ${emptyState('ph ph-circle-notch', 'Chargement', 'On recupere vos conversations.')}
@@ -1205,7 +1386,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-secondary); padding:24px; text-align:center;">
                         <div>
                             <i class="ph ph-chat-circle-dots" style="font-size:48px; opacity:0.3; display:block; margin-bottom:12px;"></i>
-                            Sélectionnez ou cherchez une conversation
+                            Selectionnez une personne pour commencer
                         </div>
                     </div>
                 </div>
@@ -1217,25 +1398,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchInput = document.getElementById('chat-search');
 
         let activeReceiverHandle = null;
+        let activeReceiverId = null;
         let socket = null;
 
         // Connect Socket.io
         if (typeof io !== 'undefined') {
-            socket = io(BACKEND_ORIGIN);
+            socket = io(BACKEND_ORIGIN, { auth: { token: state.token } });
             socket.on('connect', () => {
                 socket.emit('register', state.user.id);
             });
             
             socket.on('new_message', (msg) => {
                 // If we are talking to the sender/receiver, append message
-                const isFromMe = msg.sender_id === state.user.id;
-                const otherHandle = isFromMe ? activeReceiverHandle : msg.sender_handle;
+                const isFromMe = Number(msg.sender_id) === Number(state.user.id);
+                const otherId = isFromMe ? Number(msg.receiver_id) : Number(msg.sender_id);
+                const otherHandle = isFromMe ? msg.receiver_handle : msg.sender_handle;
                 
-                if (activeReceiverHandle === otherHandle) {
+                if (Number(activeReceiverId) === otherId || activeReceiverHandle === otherHandle) {
                     appendMessageToUI(msg, isFromMe);
                     scrollToBottom();
                 }
                 loadConversations(); // refresh sidebar
+            });
+
+            socket.on('message_error', (payload) => {
+                alert(payload?.error || "Impossible d'envoyer le message.");
             });
         }
 
@@ -1254,13 +1441,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         div.className = `msg-conv ${u.handle === activeReceiverHandle ? 'active-conv' : ''}`;
                         div.style.cssText = `display:flex;align-items:center;gap:12px;padding:16px;cursor:pointer;border-bottom:1px solid var(--border-color); ${u.handle === activeReceiverHandle ? 'background:var(--hover-bg);' : ''}`;
                         div.innerHTML = `
-                            <div class="avatar" style="background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=${u.handle}');flex-shrink:0;"></div>
+                            <div class="avatar" style="background-image:url('${userAvatarUrl(u)}');flex-shrink:0;"></div>
                             <div style="overflow:hidden;">
-                                <p style="font-weight:600;">${u.name}</p>
-                                <p style="font-size:13px;color:var(--text-secondary);">@${u.handle}</p>
+                                <p style="font-weight:600;">${escapeHtml(u.name)}</p>
+                                <p style="font-size:13px;color:var(--text-secondary);">@${escapeHtml(u.handle)}</p>
+                                <p style="font-size:12px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(u.last_message || '')}</p>
                             </div>
                         `;
-                        div.onclick = () => openChat(u.handle, u.name);
+                        div.onclick = () => openChat(u);
                         convList.appendChild(div);
                     });
                 }
@@ -1269,16 +1457,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        async function openChat(handle, name) {
+        async function openChat(userOrHandle, fallbackName = '') {
+            const selectedUser = typeof userOrHandle === 'string'
+                ? { handle: userOrHandle, name: fallbackName, avatar_url: null }
+                : userOrHandle;
+            const handle = selectedUser.handle;
+            const name = selectedUser.name || handle;
             activeReceiverHandle = handle;
+            activeReceiverId = selectedUser.id || null;
             loadConversations(); // refresh active state
             
             chatArea.innerHTML = `
                 <div style="padding:16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:12px; backdrop-filter:blur(10px);">
-                    <div class="avatar" style="width:40px;height:40px;background-image:url('https://api.dicebear.com/7.x/avataaars/svg?seed=${handle}');background-size:cover;border-radius:50%;"></div>
+                    <div class="avatar" style="width:40px;height:40px;background-image:url('${userAvatarUrl(selectedUser)}');background-size:cover;border-radius:50%;"></div>
                     <div>
-                        <p style="font-weight:600;">${name || handle}</p>
-                        <p style="font-size:12px; color:var(--text-secondary);">@${handle}</p>
+                        <p style="font-weight:600;">${escapeHtml(name || handle)}</p>
+                        <p style="font-size:12px; color:var(--text-secondary);">@${escapeHtml(handle)}</p>
                     </div>
                 </div>
                 <div id="chat-messages" style="flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;">
@@ -1349,12 +1543,57 @@ document.addEventListener('DOMContentLoaded', () => {
             input.value = '';
         }
 
-        // Search logic to start new chat
-        searchInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                const handle = searchInput.value.trim().replace('@', '');
-                if (handle) openChat(handle, handle);
+        function renderPeopleSuggestions(users, title = 'Suggestions') {
+            if (!Array.isArray(users) || users.length === 0) {
+                convList.innerHTML = emptyState('ph ph-user-focus', 'Aucune personne', 'Essayez un nom ou un @pseudo.');
+                return;
             }
+
+            convList.innerHTML = `
+                <div class="message-suggestion-title">${escapeHtml(title)}</div>
+                ${users.map(user => `
+                    <button class="message-person-result" type="button" data-handle="${escapeHtml(user.handle)}">
+                        <div class="avatar" style="background-image:url('${userAvatarUrl(user)}')"></div>
+                        <div>
+                            <strong>${escapeHtml(user.name)}</strong>
+                            <span>@${escapeHtml(user.handle)}</span>
+                            <small>${escapeHtml(affinityText(user))}</small>
+                        </div>
+                    </button>
+                `).join('')}
+            `;
+
+            convList.querySelectorAll('.message-person-result').forEach((button, index) => {
+                button.addEventListener('click', () => openChat(users[index]));
+            });
+        }
+
+        async function loadMessageSuggestions(query = '') {
+            try {
+                convList.innerHTML = emptyState('ph ph-circle-notch', 'Recherche', 'On cherche les profils pertinents.');
+                const res = await fetch(`${API_URL}/message-suggestions?q=${encodeURIComponent(query)}`, {
+                    headers: { 'Authorization': `Bearer ${state.token}` }
+                });
+                const users = await res.json();
+                renderPeopleSuggestions(users, query ? 'Resultats' : 'Suggestions avec affinite');
+            } catch (error) {
+                convList.innerHTML = emptyState('ph ph-warning-circle', 'Recherche impossible', 'Reessayez dans un instant.');
+            }
+        }
+
+        // Search logic to start new chat
+        let messageSearchTimer;
+        searchInput.addEventListener('input', () => {
+            const query = searchInput.value.trim().replace(/^@/, '');
+            clearTimeout(messageSearchTimer);
+            messageSearchTimer = setTimeout(() => {
+                if (query) loadMessageSuggestions(query);
+                else loadConversations();
+            }, 180);
+        });
+
+        searchInput.addEventListener('focus', () => {
+            if (!searchInput.value.trim()) loadMessageSuggestions();
         });
 
         loadConversations();
