@@ -58,8 +58,11 @@ router.post("/", authenticateToken, async (req, res) => {
       sql: "INSERT INTO angles (prisme_id, author_id, content, media_url) VALUES (?, ?, ?, ?)",
       args: [prismeId, req.user.id, content, mediaUrl || null]
     });
-    res.status(201).json({ id: aRes.lastInsertRowid });
-  } catch (error) { res.status(500).json({ error: "Erreur création" }); }
+    res.status(201).json({ id: aRes.lastInsertRowid.toString() });
+  } catch (error) { 
+    console.error("POST /api/angles Error:", error);
+    res.status(500).json({ error: "Erreur création" }); 
+  }
 });
 
 router.post("/:id/like", authenticateToken, async (req, res) => {

@@ -45,7 +45,7 @@ router.post("/register", async (req, res) => {
     const verificationLink = `${process.env.APP_URL || 'http://localhost:5501'}/verify.html?token=${verificationToken}`;
     await sendVerificationEmail(email, name, verificationLink);
 
-    res.status(201).json({ message: "Compte créé ! Vérifiez votre e-mail.", id: result.lastInsertRowid });
+    res.status(201).json({ message: "Compte créé ! Vérifiez votre e-mail.", id: result.lastInsertRowid.toString() });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Erreur lors de l'inscription." });
