@@ -2,38 +2,20 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Prisme - Perspectives Partagées</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#050505">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="Gerez votre profil Prisme et consultez vos Angles publies.">
+    <title>Mon Profil — Prisme</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    
-    <!-- Firebase SDKs -->
-    <script type="module">
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-      import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-      import { getStorage } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js";
-
-      // ⚠️ REMPLACER CECI PAR VOTRE VRAIE CONFIGURATION FIREBASE PLUS TARD
-      const firebaseConfig = {
-  apiKey: "AIzaSyAjVje0jwrh0bUYah8vvFFqltuREii1wnM",
-        authDomain: "prisme-3bc01.firebaseapp.com",
-        projectId: "prisme-3bc01",
-        storageBucket: "prisme-3bc01.firebasestorage.app",
-        messagingSenderId: "636821728554",
-        appId: "1:636821728554:web:6d6e6085f6e297f2d54253"
-      };
-
-      // Exposer Firebase globalement pour app.js
-      window.firebaseApp = initializeApp(firebaseConfig);
-      window.firebaseAuth = getAuth(window.firebaseApp);
-      window.firebaseStorage = getStorage(window.firebaseApp);
-      window.fbAuthMethods = { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, RecaptchaVerifier, signInWithPhoneNumber };
-    </script>
+    <!-- Socket.io -->
+    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
 </head>
 <body>
     <nav class="sidebar">

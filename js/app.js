@@ -1,5 +1,19 @@
 const API_URL = 'http://localhost:3000/api';
 
+// ── Theme Toggle (persistent) ─────────────────────────────
+const savedTheme = localStorage.getItem('prisme_theme') || 'dark';
+if (savedTheme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+
+function applyTheme(isDark) {
+    if (isDark) {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('prisme_theme', 'dark');
+    } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        localStorage.setItem('prisme_theme', 'light');
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // State
     const state = {
@@ -21,7 +35,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const authModeText = document.getElementById('auth-mode-text');
     const authToggle = document.getElementById('auth-toggle');
     const btnLogout = document.getElementById('btn-logout');
+    // Mobile topbar buttons
+    const btnThemeToggle   = document.getElementById('btn-theme-toggle');
+    const btnThemeMobile   = document.getElementById('btn-theme-toggle-mobile');
+    const btnLogoutMobile  = document.getElementById('btn-logout-mobile');
+    let isDark = localStorage.getItem('prisme_theme') !== 'light';
     let isLoginMode = true;
+
+    // ── Theme handler (shared) ──────────────────────────────
+    function handleThemeToggle() {
+        isDark = !isDark;
+        applyTheme(isDark);
+    }
+    if (btnThemeToggle)  btnThemeToggle.addEventListener('click', handleThemeToggle);
+    if (btnThemeMobile)  btnThemeMobile.addEventListener('click', handleThemeToggle);
 
     // Create Modal
     const createBtn = document.getElementById('btn-create-prisme');
@@ -38,13 +65,26 @@ document.addEventListener('DOMContentLoaded', () => {
     // UI Updates
     function updateAuthUI() {
         if (state.user) {
-            authModal.classList.remove('active');
-            btnLogout.style.display = 'flex';
+            if(authModal) authModal.classList.remove('active');
+            if(btnLogout) btnLogout.style.display = 'flex';
+            if(btnLogoutMobile) btnLogoutMobile.style.display = 'flex';
         } else {
-            authModal.classList.add('active');
-            btnLogout.style.display = 'none';
+            if(authModal) authModal.classList.add('active');
+            if(btnLogout) btnLogout.style.display = 'none';
+            if(btnLogoutMobile) btnLogoutMobile.style.display = 'none';
         }
     }
+
+    function doLogout() {
+        state.user = null;
+        state.token = null;
+        localStorage.removeItem('prisme_user');
+        localStorage.removeItem('prisme_token');
+        updateAuthUI();
+        window.location.href = 'index.html';
+    }
+    if(btnLogout)       btnLogout.addEventListener('click', doLogout);
+    if(btnLogoutMobile) btnLogoutMobile.addEventListener('click', doLogout);
 
     // Fetch Data
     async function fetchPosts() {
@@ -694,19 +734,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Initialize UI with sidebar and chat area
         container.innerHTML = `
-            <div style="display:flex; height:calc(100vh - 73px); width:100%;">
-                <div style="width:280px; border-right:1px solid var(--border-color); display:flex; flex-direction:column; flex-shrink:0;">
+            <div class="messages-inner" style="display:flex; height:calc(100dvh - 73px); width:100%;">
+                <div class="messages-sidebar-col" style="width:280px; border-right:1px solid var(--border-color); display:flex; flex-direction:column; flex-shrink:0;">
                     <div style="padding:16px; border-bottom:1px solid var(--border-color);">
                         <h2 style="font-size:18px; margin-bottom:12px;">Messages</h2>
-                        <div class="search-bar" style="width:100%;"><i class="ph ph-magnifying-glass"></i><input type="text" id="chat-search" placeholder="Nouveau message à @handle..." style="width:100%;"></div>
+                        <div class="search-bar" style="width:100%;"><i class="ph ph-magnifying-glass"></i><input type="text" id="chat-search" placeholder="Chercher @handle…" style="width:100%;"></div>
                     </div>
                     <div id="conv-list" style="overflow-y:auto; flex:1;">
                         <p style="color:var(--text-secondary); padding:16px; text-align:center;">Chargement...</p>
                     </div>
                 </div>
-                <div id="chat-area" style="flex:1; display:flex; flex-direction:column; background:var(--bg-color);">
-                    <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-secondary);">
-                        Sélectionnez ou cherchez une conversation pour commencer
+                <div id="chat-area" style="flex:1; display:flex; flex-direction:column; background:var(--bg-color); min-height:0;">
+                    <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-secondary); padding:24px; text-align:center;">
+                        <div>
+                            <i class="ph ph-chat-circle-dots" style="font-size:48px; opacity:0.3; display:block; margin-bottom:12px;"></i>
+                            Sélectionnez ou cherchez une conversation
+                        </div>
                     </div>
                 </div>
             </div>
