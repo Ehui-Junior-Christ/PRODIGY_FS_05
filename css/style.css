@@ -511,9 +511,14 @@ body {
 }
 
 .input-field:focus {
-    background-color: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.2);
-    box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.05);
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+select.input-field option {
+    background-color: var(--bg-color);
+    color: var(--text-primary);
 }
 
 .password-wrapper {

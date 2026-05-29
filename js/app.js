@@ -140,10 +140,12 @@ document.addEventListener('DOMContentLoaded', () => {
             <article class="post" data-id="${post.id}">
                 <header class="post-header" style="cursor:pointer;" onclick="navigateTo('profile', 'user=${post.author_handle}')">
                     <div class="avatar" style="background-image: url('https://api.dicebear.com/7.x/avataaars/svg?seed=${post.author_handle}')"></div>
-                    <div class="post-meta">
+                    <div class="post-meta" style="flex:1;">
                         <h3>${post.author} <span style="font-weight:normal; font-size:13px; color:var(--text-secondary);">@${post.author_handle}</span> <span class="prisme-tag">dans #${post.prisme}</span></h3>
                         <p>${post.created_at ? new Date(post.created_at).toLocaleDateString() : ''}</p>
                     </div>
+                    ${state.user && state.user.handle === post.author_handle ? 
+                    `<button class="delete-post-btn" onclick="event.stopPropagation(); deletePost(${post.id})" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; padding:8px;"><i class="ph ph-trash" style="font-size:18px;"></i></button>` : ''}
                 </header>
                 <p class="post-content">${post.content}</p>
                 ${post.media_url ? `<div style="margin-top:12px; border-radius:12px; overflow:hidden; border:1px solid var(--border-color);"><img src="${post.media_url}" style="width:100%; display:block;" alt="Media attaché"></div>` : ''}
@@ -206,6 +208,29 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.error("Failed to like", e);
+        }
+    };
+
+    window.deletePost = async (id) => {
+        if (!confirm("Voulez-vous vraiment supprimer cet Angle ?")) return;
+        try {
+            const res = await fetch(`${API_URL}/angles/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${state.token}` }
+            });
+            if (res.ok) {
+                state.posts = state.posts.filter(p => p.id !== id);
+                renderPosts();
+                if (state.currentView === 'profile') {
+                    // Refresh profile to update angles count
+                    const userParam = new URLSearchParams(window.location.search).get('user') || state.user.handle;
+                    fetchAndRenderProfile(userParam);
+                }
+            } else {
+                alert("Erreur lors de la suppression");
+            }
+        } catch (e) {
+            console.error("Failed to delete post", e);
         }
     };
 

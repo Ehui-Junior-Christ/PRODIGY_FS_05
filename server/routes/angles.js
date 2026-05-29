@@ -76,4 +76,22 @@ router.post("/:id/like", authenticateToken, async (req, res) => {
   }
 });
 
+router.delete("/:id", authenticateToken, async (req, res) => {
+  try {
+    // Vérifier si l'angle appartient bien à l'utilisateur
+    const check = await client.execute({ sql: "SELECT author_id FROM angles WHERE id = ?", args: [req.params.id] });
+    if (check.rows.length === 0) return res.status(404).json({ error: "Angle introuvable" });
+    if (check.rows[0].author_id !== req.user.id) return res.status(403).json({ error: "Non autorisé" });
+    
+    // Supprimer les likes et les tags liés (si ajoutés plus tard)
+    await client.execute({ sql: "DELETE FROM likes WHERE angle_id = ?", args: [req.params.id] });
+    await client.execute({ sql: "DELETE FROM angles WHERE id = ?", args: [req.params.id] });
+    
+    res.json({ message: "Angle supprimé" });
+  } catch (error) {
+    console.error("DELETE /api/angles Error:", error);
+    res.status(500).json({ error: "Erreur lors de la suppression" });
+  }
+});
+
 export default router;
