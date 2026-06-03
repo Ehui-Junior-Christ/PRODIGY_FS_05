@@ -26,9 +26,61 @@ document.addEventListener('DOMContentLoaded', () => {
         suggestions: [],
         user: JSON.parse(localStorage.getItem('prisme_user')) || null,
         token: localStorage.getItem('prisme_token') || null,
+        isAuthenticated: false,
+        authStatus: 'checking',
+        sidebarStatus: { trending: 'idle', suggestions: 'idle' },
         openComments: new Set(),
         searchQuery: ''
     };
+    let hasBootstrappedApp = false;
+
+    function authHeaders() {
+        return state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
+    }
+
+    async function apiFetch(url, options = {}, timeoutMs = 10000) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+            const headers = {
+                ...(options.headers || {})
+            };
+            const res = await fetch(url, { ...options, headers, signal: controller.signal });
+            if (!res.ok) {
+                const payload = await res.json().catch(() => ({}));
+                const error = new Error(payload.error || `HTTP ${res.status}`);
+                error.status = res.status;
+                error.payload = payload;
+                throw error;
+            }
+            return res;
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                throw new Error('Timeout de chargement');
+            }
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    function clearSession() {
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.authStatus = 'anonymous';
+        localStorage.removeItem('prisme_user');
+        localStorage.removeItem('prisme_token');
+    }
+
+    function setSession(data) {
+        state.token = data.token || state.token;
+        state.user = data.user || data;
+        state.isAuthenticated = Boolean(state.token && state.user);
+        state.authStatus = state.isAuthenticated ? 'authenticated' : 'anonymous';
+        if (state.token) localStorage.setItem('prisme_token', state.token);
+        if (state.user) localStorage.setItem('prisme_user', JSON.stringify(state.user));
+    }
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -50,8 +102,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function avatarInitials(user) {
-        const source = user?.name || user?.author || user?.handle || user?.author_handle || '?';
+        const source = user?.name || user?.author || user?.handle || user?.author_handle || '';
         const words = String(source).trim().split(/\s+/).filter(Boolean);
+        if (words.length === 0) return '<i class="ph ph-user"></i>';
         const initials = words.length > 1
             ? `${words[0][0] || ''}${words[1][0] || ''}`
             : String(source).slice(0, 2);
@@ -87,13 +140,14 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
+    function showErrorState(icon, title = 'Impossible de charger les donnees. Reessayer.', body = 'Verifiez votre connexion puis relancez le chargement.') {
+        return emptyState(icon, title, body);
+    }
+
     function saveSession(data) {
-        state.token = data.token;
-        state.user = data.user;
-        localStorage.setItem('prisme_token', state.token);
-        localStorage.setItem('prisme_user', JSON.stringify(state.user));
+        setSession(data);
         updateAuthUI();
-        fetchPosts();
+        startAuthenticatedApp();
         if (currentView === 'profile') fetchAndRenderProfile();
     }
 
@@ -164,22 +218,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // UI Updates
     function updateAuthUI() {
-        if (state.user) {
+        const isAuthed = Boolean(state.isAuthenticated && state.user && state.token);
+        document.body.classList.toggle('auth-pending', state.authStatus === 'checking');
+        document.body.classList.toggle('auth-locked', !isAuthed && state.authStatus !== 'checking');
+        document.body.classList.toggle('auth-ready', isAuthed);
+
+        if (isAuthed) {
             if(authModal) authModal.classList.remove('active');
             if(btnLogout) btnLogout.style.display = 'flex';
             if(btnLogoutMobile) btnLogoutMobile.style.display = 'flex';
+            if(createBtn) createBtn.style.display = '';
         } else {
             if(authModal) authModal.classList.add('active');
             if(btnLogout) btnLogout.style.display = 'none';
             if(btnLogoutMobile) btnLogoutMobile.style.display = 'none';
+            if(createBtn) createBtn.style.display = 'none';
         }
     }
 
+    function requireAuth(actionName = 'continuer') {
+        if (state.isAuthenticated && state.user && state.token) return true;
+        if (authModal) authModal.classList.add('active');
+        alert(`Connectez-vous pour ${actionName}.`);
+        return false;
+    }
+
     function doLogout() {
-        state.user = null;
-        state.token = null;
-        localStorage.removeItem('prisme_user');
-        localStorage.removeItem('prisme_token');
+        clearSession();
         updateAuthUI();
         window.location.href = 'index.html';
     }
@@ -206,9 +271,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let users = [];
         try {
-            const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
-            const res = await fetch(`${API_URL}/users/search?q=${encodeURIComponent(query)}`, { headers });
-            if (res.ok) users = await res.json();
+            const res = await apiFetch(`${API_URL}/users/search?q=${encodeURIComponent(query)}`, { headers: authHeaders() });
+            users = await res.json();
         } catch (error) {
             console.error("Search users failed", error);
         }
@@ -269,30 +333,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fetch Data
     async function fetchPosts() {
+        if (!state.isAuthenticated) return;
+        if (feedContainer) {
+            feedContainer.innerHTML = emptyState('ph ph-circle-notch', 'Chargement', 'On recupere les Angles.');
+        }
         try {
-            const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
-            const res = await fetch(`${API_URL}/angles`, { headers });
-            if (res.ok) {
-                state.posts = await res.json();
-                renderPosts();
-            }
+            const res = await apiFetch(`${API_URL}/angles`, { headers: authHeaders() });
+            state.posts = await res.json();
+            renderPosts();
         } catch (e) {
             console.error("Failed to fetch posts", e);
+            if (feedContainer) {
+                feedContainer.innerHTML = showErrorState('ph ph-warning-circle');
+            }
         }
     }
 
     async function fetchSidebar() {
+        if (!state.isAuthenticated) return;
+        state.sidebarStatus = { trending: 'loading', suggestions: 'loading' };
+        renderSidebar();
         try {
-            const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
             const [trendRes, suggRes] = await Promise.all([
-                fetch(`${API_URL}/trending`),
-                fetch(`${API_URL}/suggestions`, { headers })
+                apiFetch(`${API_URL}/trending`),
+                apiFetch(`${API_URL}/suggestions`, { headers: authHeaders() })
             ]);
-            if (trendRes.ok) state.trending = await trendRes.json();
-            if (suggRes.ok) state.suggestions = await suggRes.json();
+            state.trending = await trendRes.json();
+            state.suggestions = await suggRes.json();
+            state.sidebarStatus = { trending: 'success', suggestions: 'success' };
             renderSidebar();
         } catch (e) {
             console.error("Failed to fetch sidebar data", e);
+            state.sidebarStatus = { trending: 'error', suggestions: 'error' };
+            renderSidebar();
         }
     }
 
@@ -373,19 +446,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderSidebar() {
         if (trendingList) {
-            trendingList.innerHTML = state.trending.length
-                ? state.trending.map(t => `
+            if (state.sidebarStatus.trending === 'loading') {
+                trendingList.innerHTML = `<li>${emptyState('ph ph-circle-notch', 'Chargement', 'On recupere les sujets du moment.')}</li>`;
+            } else if (state.sidebarStatus.trending === 'error') {
+                trendingList.innerHTML = `<li>${showErrorState('ph ph-warning-circle')}</li>`;
+            } else {
+                trendingList.innerHTML = state.trending.length
+                    ? state.trending.map(t => `
                     <li class="trending-item">
                         <p class="topic">${escapeHtml(t.topic)}</p>
                         <p class="count">${escapeHtml(t.count)}</p>
                     </li>
                 `).join('')
-                : '<li class="trending-item"><p class="topic">Aucun sujet</p><p class="count">Publiez un Angle pour lancer le flux.</p></li>';
+                    : `<li>${emptyState('ph ph-trend-up', 'Aucun sujet du moment', 'Les tendances apparaitront quand les Angles commenceront a circuler.')}</li>`;
+            }
         }
 
         if (suggestionsList) {
-            suggestionsList.innerHTML = state.suggestions.length
-                ? state.suggestions.map(s => `
+            if (state.sidebarStatus.suggestions === 'loading') {
+                suggestionsList.innerHTML = `<li>${emptyState('ph ph-circle-notch', 'Chargement', 'On cherche des profils pertinents.')}</li>`;
+            } else if (state.sidebarStatus.suggestions === 'error') {
+                suggestionsList.innerHTML = `<li>${showErrorState('ph ph-warning-circle')}</li>`;
+            } else {
+                suggestionsList.innerHTML = state.suggestions.length
+                    ? state.suggestions.map(s => `
                     <li class="suggestion-item" onclick="navigateTo('profile', 'user=${encodeURIComponent(s.handle)}')">
                         <div class="suggestion-info">
                             ${avatarMarkup(s)}
@@ -397,47 +481,46 @@ document.addEventListener('DOMContentLoaded', () => {
                         </div>
                         <button class="btn-follow ${s.isFollowing ? 'is-following' : ''}" onclick="event.stopPropagation(); toggleFollowUser(${s.id}, this)">${s.isFollowing ? 'Abonné' : 'Suivre'}</button>
                     </li>
-                `).join('')
-                : '<li class="suggestion-item"><div><p>Pas de suggestion</p><p style="font-size:12px;color:var(--text-secondary)">Revenez apres quelques inscriptions.</p></div></li>';
+                    `).join('')
+                    : `<li>${emptyState('ph ph-user-plus', 'Aucune suggestion pour le moment', 'Revenez quand davantage de profils seront disponibles.')}</li>`;
+            }
         }
     }
 
     // Interactions
     window.toggleLike = async (id) => {
-        if (!state.token) return alert("Veuillez vous connecter pour liker");
+        if (!requireAuth('liker')) return;
         
         try {
-            const res = await fetch(`${API_URL}/angles/${id}/like`, {
+            const res = await apiFetch(`${API_URL}/angles/${id}/like`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${state.token}` }
+                headers: authHeaders()
             });
-            if (res.ok) {
-                const data = await res.json();
-                const post = state.posts.find(p => p.id === id);
-                if (post) {
-                    post.isLiked = data.liked;
-                    post.likes += data.liked ? 1 : -1;
-                    renderPosts();
-                }
+            const data = await res.json();
+            const post = state.posts.find(p => p.id === id);
+            if (post) {
+                post.isLiked = data.liked;
+                post.likes += data.liked ? 1 : -1;
+                renderPosts();
             }
         } catch (e) {
             console.error("Failed to like", e);
+            alert("Impossible de mettre a jour le like. Reessayer.");
         }
     };
 
     window.toggleFollowUser = async (userId, button) => {
-        if (!state.token) return alert("Veuillez vous connecter pour suivre quelqu'un.");
+        if (!requireAuth("suivre quelqu'un")) return;
         const originalText = button?.textContent;
         if (button) {
             button.disabled = true;
             button.textContent = '...';
         }
         try {
-            const res = await fetch(`${API_URL}/users/${userId}/follow`, {
+            const res = await apiFetch(`${API_URL}/users/${userId}/follow`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${state.token}` }
+                headers: authHeaders()
             });
-            if (!res.ok) throw new Error("follow failed");
             const data = await res.json();
             if (button) {
                 button.textContent = data.following ? 'Abonné' : 'Suivre';
@@ -458,7 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         list.innerHTML = '<p style="color:var(--text-secondary); font-size:13px;">Chargement des commentaires...</p>';
         try {
-            const res = await fetch(`${API_URL}/angles/${id}/comments`);
+            const res = await apiFetch(`${API_URL}/angles/${id}/comments`);
             const comments = await res.json();
             if (!Array.isArray(comments) || comments.length === 0) {
                 list.innerHTML = '<p style="color:var(--text-secondary); font-size:13px;">Aucun commentaire pour le moment.</p>';
@@ -495,33 +578,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.submitComment = async (event, id) => {
         event.preventDefault();
-        if (!state.token) return alert("Veuillez vous connecter pour commenter");
+        if (!requireAuth('commenter')) return;
 
         const input = document.getElementById(`comment-input-${id}`);
         const content = input?.value.trim();
         if (!content) return;
 
         try {
-            const res = await fetch(`${API_URL}/angles/${id}/comments`, {
+            const res = await apiFetch(`${API_URL}/angles/${id}/comments`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${state.token}`
+                    ...authHeaders()
                 },
                 body: JSON.stringify({ content })
             });
 
-            if (res.ok) {
-                input.value = '';
-                const post = state.posts.find(p => p.id === id);
-                if (post) post.comments = (Number(post.comments) || 0) + 1;
-                const count = document.getElementById(`comment-count-${id}`);
-                if (count) count.textContent = post?.comments || Number(count.textContent || 0) + 1;
-                await loadComments(id);
-            } else {
-                const data = await res.json().catch(() => ({}));
-                alert(data.error || "Erreur lors du commentaire");
-            }
+            input.value = '';
+            const post = state.posts.find(p => p.id === id);
+            if (post) post.comments = (Number(post.comments) || 0) + 1;
+            const count = document.getElementById(`comment-count-${id}`);
+            if (count) count.textContent = post?.comments || Number(count.textContent || 0) + 1;
+            await loadComments(id);
         } catch (e) {
             alert("Erreur reseau lors du commentaire");
         }
@@ -530,23 +608,19 @@ document.addEventListener('DOMContentLoaded', () => {
     window.deletePost = async (id) => {
         if (!confirm("Voulez-vous vraiment supprimer cet Angle ?")) return;
         try {
-            const res = await fetch(`${API_URL}/angles/${id}`, {
+            const res = await apiFetch(`${API_URL}/angles/${id}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${state.token}` }
+                headers: authHeaders()
             });
-            if (res.ok) {
-                state.posts = state.posts.filter(p => p.id !== id);
-                renderPosts();
-                if (currentView === 'profile') {
-                    // Refresh profile to update angles count
-                    const userParam = new URLSearchParams(window.location.search).get('user') || state.user.handle;
-                    fetchAndRenderProfile(userParam);
-                }
-            } else {
-                alert("Erreur lors de la suppression");
+            state.posts = state.posts.filter(p => p.id !== id);
+            renderPosts();
+            if (currentView === 'profile') {
+                const userParam = new URLSearchParams(window.location.search).get('user') || state.user.handle;
+                fetchAndRenderProfile(userParam);
             }
         } catch (e) {
             console.error("Failed to delete post", e);
+            alert("Erreur lors de la suppression");
         }
     };
 
@@ -564,7 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.editPost = (id) => {
         (async () => {
             window.togglePostOptions(id);
-            if (!state.token) return alert("Veuillez vous connecter.");
+            if (!requireAuth('modifier cet Angle')) return;
             const post = state.posts.find(p => Number(p.id) === Number(id));
             if (!post) return alert("Angle introuvable.");
             const content = prompt("Modifier votre Angle", post.content || "");
@@ -572,16 +646,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const nextContent = content.trim();
             if (!nextContent) return alert("Le contenu ne peut pas etre vide.");
             try {
-                const res = await fetch(`${API_URL}/angles/${id}`, {
+                const res = await apiFetch(`${API_URL}/angles/${id}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${state.token}`
+                        ...authHeaders()
                     },
                     body: JSON.stringify({ content: nextContent })
                 });
-                const data = await res.json().catch(() => ({}));
-                if (!res.ok) return alert(data.error || "Modification impossible.");
                 post.content = nextContent;
                 renderPosts();
             } catch (error) {
@@ -594,15 +666,15 @@ document.addEventListener('DOMContentLoaded', () => {
     window.repostAngle = (id) => {
         (async () => {
             window.togglePostOptions(id);
-            if (!state.token) return alert("Veuillez vous connecter pour republier.");
+            if (!requireAuth('republier')) return;
             const post = state.posts.find(p => Number(p.id) === Number(id));
             if (!post) return alert("Angle introuvable.");
             try {
-                const res = await fetch(`${API_URL}/angles`, {
+                await apiFetch(`${API_URL}/angles`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${state.token}`
+                        ...authHeaders()
                     },
                     body: JSON.stringify({
                         content: `Repost de @${post.author_handle}: ${post.content}`,
@@ -610,7 +682,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         mediaUrl: post.media_url || null
                     })
                 });
-                if (!res.ok) return alert("Repost impossible.");
                 await fetchPosts();
             } catch (error) {
                 alert("Erreur reseau pendant le repost.");
@@ -654,7 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPostMedia = null;
 
     function openModal() {
-        if (!state.user) return alert("Veuillez vous connecter");
+        if (!requireAuth('creer un Angle')) return;
         modal.classList.add('active');
         document.body.style.overflow = 'hidden';
     }
@@ -703,6 +774,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Publish post
     submitPost.addEventListener('click', async () => {
+        if (!requireAuth("publier un Angle")) return;
         const content = postContent.value.trim();
         const selectedPrisme = prismeSelect.options[prismeSelect.selectedIndex];
         const prisme = selectedPrisme.value || 'general';
@@ -714,21 +786,17 @@ document.addEventListener('DOMContentLoaded', () => {
         submitPost.disabled = true;
 
         try {
-            const res = await fetch(`${API_URL}/angles`, {
+            await apiFetch(`${API_URL}/angles`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${state.token}`
+                    ...authHeaders()
                 },
                 body: JSON.stringify({ content, prisme, tags, mediaUrl: currentPostMedia })
             });
 
-            if (res.ok) {
-                hideModal();
-                await fetchPosts();
-            } else {
-                alert("Erreur lors de la publication");
-            }
+            hideModal();
+            await fetchPosts();
         } catch (e) {
             console.error(e);
             alert("Erreur réseau");
@@ -839,12 +907,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await res.json();
                 
                 if (res.ok) {
-                    state.token = data.token;
-                    state.user = data.user;
-                    localStorage.setItem('prisme_token', state.token);
-                    localStorage.setItem('prisme_user', JSON.stringify(state.user));
-                    updateAuthUI();
-                    fetchPosts();
+                    saveSession(data);
                 } else {
                     alert(data.error || "Erreur de connexion");
                 }
@@ -1053,7 +1116,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!list) return;
         list.innerHTML = emptyState('ph ph-circle-notch', 'Chargement', 'On recupere les sujets du moment.');
         try {
-            const res = await fetch(`${API_URL}/trending`);
+            const res = await apiFetch(`${API_URL}/trending`);
             const data = await res.json();
             state.trending = data;
             if (data.length === 0) {
@@ -1071,7 +1134,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `).join('');
         } catch (e) {
-            list.innerHTML = emptyState('ph ph-warning-circle', 'Chargement impossible', 'Reessayez dans un instant.');
+            list.innerHTML = showErrorState('ph ph-warning-circle');
         }
     }
 
@@ -1084,8 +1147,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         container.innerHTML = emptyState('ph ph-circle-notch', 'Chargement', 'On recupere vos notifications.');
         try {
-            const res = await fetch(`${API_URL}/notifications`, {
-                headers: { 'Authorization': `Bearer ${state.token}` }
+            const res = await apiFetch(`${API_URL}/notifications`, {
+                headers: authHeaders()
             });
             const data = await res.json();
 
@@ -1128,7 +1191,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).join('')}
             </div>`;
         } catch (e) {
-            container.innerHTML = emptyState('ph ph-warning-circle', 'Chargement impossible', 'Reessayez dans un instant.');
+            container.innerHTML = showErrorState('ph ph-warning-circle');
         }
     }
 
@@ -1149,6 +1212,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const coverEl = document.getElementById('profile-cover');
         const btnEditProfile = document.getElementById('btn-edit-profile');
         const btnFollowProfile = document.getElementById('btn-follow-profile');
+        const anglesCountEl = document.getElementById('profile-angles');
+        const followersCountEl = document.getElementById('profile-followers');
+        const followingCountEl = document.getElementById('profile-following');
+
+        if (nameEl) {
+            nameEl.textContent = '';
+            nameEl.className = 'skeleton-text';
+        }
+        if (handleEl) {
+            handleEl.textContent = '';
+            handleEl.className = 'skeleton-text skeleton-text-short';
+        }
+        [anglesCountEl, followersCountEl, followingCountEl].forEach(el => {
+            if (el) {
+                el.textContent = '';
+                el.className = 'skeleton-counter';
+            }
+        });
 
         try {
             let res;
@@ -1156,17 +1237,23 @@ document.addEventListener('DOMContentLoaded', () => {
             if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
 
             if (targetHandle) {
-                res = await fetch(`${API_URL}/users/${targetHandle}`, { headers });
+                res = await apiFetch(`${API_URL}/users/${targetHandle}`, { headers });
             } else {
-                res = await fetch(`${API_URL}/users/me`, { headers });
+                res = await apiFetch(`${API_URL}/users/me`, { headers });
             }
 
             if (res.ok) {
                 const user = await res.json();
-                if (nameEl) nameEl.textContent = user.name;
-                if (handleEl) handleEl.textContent = '@' + user.handle;
+                if (nameEl) {
+                    nameEl.className = '';
+                    nameEl.textContent = user.name || '';
+                }
+                if (handleEl) {
+                    handleEl.className = '';
+                    handleEl.textContent = user.handle ? '@' + user.handle : '';
+                }
                 if (avatarEl) {
-                    avatarEl.className = isRealProfilePhoto(user.avatar_url) ? '' : 'avatar-placeholder';
+                    avatarEl.className = isRealProfilePhoto(user.avatar_url) ? 'avatar' : 'avatar-placeholder';
                     avatarEl.style.backgroundImage = isRealProfilePhoto(user.avatar_url) ? `url('${user.avatar_url}')` : '';
                     avatarEl.textContent = isRealProfilePhoto(user.avatar_url) ? '' : avatarInitials(user);
                 }
@@ -1174,9 +1261,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     coverEl.style.backgroundImage = user.cover_url ? `url('${user.cover_url}')` : `linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)`;
                 }
 
-                document.getElementById('profile-angles').textContent = user.angles_count || 0;
-                document.getElementById('profile-followers').textContent = user.followers_count || 0;
-                document.getElementById('profile-following').textContent = user.following_count || 0;
+                if (anglesCountEl) {
+                    anglesCountEl.className = '';
+                    anglesCountEl.textContent = Number(user.angles_count || 0);
+                }
+                if (followersCountEl) {
+                    followersCountEl.className = '';
+                    followersCountEl.textContent = Number(user.followers_count || 0);
+                }
+                if (followingCountEl) {
+                    followingCountEl.className = '';
+                    followingCountEl.textContent = Number(user.following_count || 0);
+                }
                 const bioDisplay = document.getElementById('profile-bio');
                 if (bioDisplay) bioDisplay.textContent = user.bio || '';
 
@@ -1196,9 +1292,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         btnFollowProfile.parentNode.replaceChild(newBtn, btnFollowProfile);
                         
                         newBtn.addEventListener('click', async () => {
-                            const followRes = await fetch(`${API_URL}/users/${user.id}/follow`, {
+                            const followRes = await apiFetch(`${API_URL}/users/${user.id}/follow`, {
                                 method: 'POST',
-                                headers: { 'Authorization': `Bearer ${state.token}` }
+                                headers: authHeaders()
                             });
                             if (followRes.ok) {
                                 const followData = await followRes.json();
@@ -1215,7 +1311,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Charger ses angles
-                const anglesRes = await fetch(`${API_URL}/users/${user.handle}/angles`);
+                const anglesRes = await apiFetch(`${API_URL}/users/${user.handle}/angles`);
                 const angles = await anglesRes.json();
                 const profileFeed = document.getElementById('profile-feed');
                 if (profileFeed) {
@@ -1239,6 +1335,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.error('Erreur chargement profil', e);
+            if (profileView) profileView.innerHTML = showErrorState('ph ph-warning-circle');
         }
     }
 
@@ -1305,7 +1402,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnEditProfile) {
         btnEditProfile.addEventListener('click', () => {
-            if (!state.user) return;
+            if (!requireAuth('editer le profil')) return;
             document.getElementById('edit-profile-name').value = state.user.name || '';
             document.getElementById('edit-profile-handle').value = state.user.handle || '';
             const bioEl = document.getElementById('edit-profile-bio');
@@ -1331,7 +1428,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (saveEditProfile) {
         saveEditProfile.addEventListener('click', async () => {
-            if (!state.token) return;
+            if (!requireAuth('enregistrer le profil')) return;
             const newName = document.getElementById('edit-profile-name').value.trim();
             const newHandle = document.getElementById('edit-profile-handle').value.trim();
             const bioEl = document.getElementById('edit-profile-bio');
@@ -1343,11 +1440,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             try {
-                const res = await fetch(`${API_URL}/users/me`, {
+                const res = await apiFetch(`${API_URL}/users/me`, {
                     method: 'PUT',
                     headers: { 
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${state.token}` 
+                        ...authHeaders()
                     },
                     body: JSON.stringify({ 
                         name: newName, 
@@ -1359,22 +1456,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
                 
                 const data = await res.json();
-                if (res.ok) {
-                    state.user.name = data.user.name;
-                    state.user.handle = data.user.handle;
-                    state.user.avatar_url = data.user.avatar_url;
-                    state.user.cover_url = data.user.cover_url;
-                    state.user.bio = data.user.bio;
-                    if (data.token) {
-                        state.token = data.token;
-                        localStorage.setItem('prisme_token', data.token);
-                    }
-                    localStorage.setItem('prisme_user', JSON.stringify(state.user));
-                    closeEditModal();
-                    fetchAndRenderProfile();
-                } else {
-                    alert(data.error || "Erreur lors de la mise à jour.");
-                }
+                setSession({ token: data.token || state.token, user: { ...state.user, ...data.user } });
+                updateAuthUI();
+                closeEditModal();
+                fetchAndRenderProfile();
             } catch (e) {
                 alert("Erreur de connexion au serveur.");
             }
@@ -1384,13 +1469,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // Rendre navigateTo accessible globalement (pour les onclick inline)
     window.navigateTo = navigateTo;
 
-    // Initial render
-    updateAuthUI();
-    initCurrentView();
-    if (currentView === 'home') {
-        fetchPosts();
+    function startAuthenticatedApp() {
+        if (!state.isAuthenticated) return;
+        updateAuthUI();
+        if (!hasBootstrappedApp) {
+            hasBootstrappedApp = true;
+            initCurrentView();
+        }
+        if (currentView === 'home') fetchPosts();
+        fetchSidebar();
     }
-    fetchSidebar(); // Sidebar is visible on all pages (trending & suggestions)
+
+    async function bootstrapAuth() {
+        state.authStatus = 'checking';
+        updateAuthUI();
+
+        if (!state.token) {
+            clearSession();
+            updateAuthUI();
+            return;
+        }
+
+        try {
+            const res = await apiFetch(`${API_URL}/auth/me`, { headers: authHeaders() });
+            const data = await res.json();
+            setSession({ token: state.token, user: data.user });
+            startAuthenticatedApp();
+        } catch (error) {
+            clearSession();
+            updateAuthUI();
+        }
+    }
+
+    // Initial render: auth guard first, app second.
+    bootstrapAuth();
 
     async function initMessages() {
         const container = document.getElementById('view-messages');
@@ -1459,8 +1571,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         async function loadConversations() {
             try {
-                const res = await fetch(`${API_URL}/conversations`, {
-                    headers: { 'Authorization': `Bearer ${state.token}` }
+                const res = await apiFetch(`${API_URL}/conversations`, {
+                    headers: authHeaders()
                 });
                 const data = await res.json();
                 convList.innerHTML = '';
@@ -1485,6 +1597,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (e) {
                 console.error(e);
+                convList.innerHTML = showErrorState('ph ph-warning-circle');
             }
         }
 
@@ -1522,8 +1635,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Fetch history
             try {
-                const res = await fetch(`${API_URL}/messages/${handle}`, {
-                    headers: { 'Authorization': `Bearer ${state.token}` }
+                const res = await apiFetch(`${API_URL}/messages/${handle}`, {
+                    headers: authHeaders()
                 });
                 const messages = await res.json();
                 document.getElementById('chat-messages').innerHTML = '';
@@ -1537,6 +1650,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 scrollToBottom();
             } catch (e) {
                 console.error(e);
+                const messagesEl = document.getElementById('chat-messages');
+                if (messagesEl) messagesEl.innerHTML = showErrorState('ph ph-warning-circle');
             }
         }
 
@@ -1602,12 +1717,13 @@ document.addEventListener('DOMContentLoaded', () => {
         async function loadMessageSuggestions(query = '') {
             try {
                 convList.innerHTML = emptyState('ph ph-circle-notch', 'Recherche', 'On cherche les profils pertinents.');
-                const headers = state.token ? { 'Authorization': `Bearer ${state.token}` } : {};
-                let res = await fetch(`${API_URL}/message-suggestions?q=${encodeURIComponent(query)}`, { headers });
-                if (!res.ok) {
-                    res = await fetch(`${API_URL}/users/search?q=${encodeURIComponent(query)}`, { headers });
+                const headers = authHeaders();
+                let res;
+                try {
+                    res = await apiFetch(`${API_URL}/message-suggestions?q=${encodeURIComponent(query)}`, { headers });
+                } catch (error) {
+                    res = await apiFetch(`${API_URL}/users/search?q=${encodeURIComponent(query)}`, { headers });
                 }
-                if (!res.ok) throw new Error("Recherche utilisateur indisponible");
                 const users = await res.json();
                 renderPeopleSuggestions(users, query ? 'Resultats' : 'Suggestions avec affinite');
             } catch (error) {
@@ -1634,3 +1750,4 @@ document.addEventListener('DOMContentLoaded', () => {
         loadConversations();
     }
 });
+

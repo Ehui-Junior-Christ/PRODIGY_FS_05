@@ -77,16 +77,9 @@ app.get("/api/trending", async (req, res) => {
       count: r.count + (r.count === 1 ? ' Angle' : ' Angles')
     }));
     // Si aucune donnée, retourner des valeurs par défaut
-    if (rows.length === 0) {
-      return res.json([
-        { topic: '#DesignEngineering', count: '0 Angles' },
-        { topic: '#Web3', count: '0 Angles' },
-        { topic: '#Tech', count: '0 Angles' }
-      ]);
-    }
     res.json(rows);
   } catch (error) {
-    res.json([{ topic: '#Prisme', count: '0 Angles' }]);
+    res.status(500).json({ error: "Failed to load trending topics" });
   }
 });
 

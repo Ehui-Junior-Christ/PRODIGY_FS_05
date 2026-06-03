@@ -531,6 +531,25 @@ body::before {
     box-shadow: var(--shadow-lift);
 }
 
+body.auth-pending,
+body.auth-locked {
+    display: block;
+}
+
+body.auth-pending .sidebar,
+body.auth-pending .main-content,
+body.auth-pending .right-panel,
+body.auth-locked .sidebar,
+body.auth-locked .main-content,
+body.auth-locked .right-panel {
+    display: none !important;
+}
+
+body.auth-pending .modal-overlay:not(#auth-modal),
+body.auth-locked .modal-overlay:not(#auth-modal) {
+    display: none !important;
+}
+
 .search-results-block {
     display: flex;
     flex-direction: column;
@@ -601,6 +620,48 @@ body::before {
     font-size: 13px;
     letter-spacing: 0;
     text-transform: uppercase;
+}
+
+.avatar-placeholder i {
+    font-size: 20px;
+    line-height: 1;
+}
+
+.skeleton,
+.skeleton-text,
+.skeleton-counter {
+    position: relative;
+    overflow: hidden;
+    color: transparent !important;
+    background:
+        linear-gradient(90deg, var(--hover-bg), color-mix(in srgb, var(--text-secondary) 18%, transparent), var(--hover-bg));
+    background-size: 220% 100%;
+    animation: skeletonPulse 1.25s var(--smooth-ease) infinite;
+}
+
+.skeleton-text {
+    display: block;
+    width: 180px;
+    height: 22px;
+    border-radius: 8px;
+}
+
+.skeleton-text-short {
+    width: 110px;
+    height: 16px;
+}
+
+.skeleton-counter {
+    display: inline-block;
+    width: 28px;
+    height: 18px;
+    border-radius: 6px;
+    vertical-align: text-bottom;
+}
+
+@keyframes skeletonPulse {
+    from { background-position: 220% 0; }
+    to { background-position: -220% 0; }
 }
 
 .post-meta h3 {

@@ -27,6 +27,17 @@ function makeSession(user) {
   };
 }
 
+function requireAuth(req, res, next) {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Session requise" });
+  try {
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch (error) {
+    res.status(401).json({ error: "Session invalide" });
+  }
+}
+
 function normalizeHandle(value, fallback = "user") {
   return String(value || fallback)
     .toLowerCase()
@@ -144,6 +155,21 @@ router.post("/login", async (req, res) => {
     res.json(makeSession(user));
   } catch (error) {
     res.status(500).json({ error: "Erreur de connexion" });
+  }
+});
+
+router.get("/me", requireAuth, async (req, res) => {
+  try {
+    const result = await client.execute({
+      sql: `SELECT id, name, handle, avatar_url, cover_url, bio
+            FROM users
+            WHERE id = ?`,
+      args: [req.user.id]
+    });
+    if (result.rows.length === 0) return res.status(401).json({ error: "Session invalide" });
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ error: "Erreur serveur" });
   }
 });
 
