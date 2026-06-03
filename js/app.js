@@ -20,16 +20,12 @@ const storage = (() => {
 
 // ── Theme Toggle (persistent) ─────────────────────────────
 const savedTheme = storage.getItem('prisme_theme') || 'dark';
-if (savedTheme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+document.documentElement.dataset.theme = savedTheme === 'light' ? 'light' : 'dark';
 
 function applyTheme(isDark) {
-    if (isDark) {
-        document.documentElement.removeAttribute('data-theme');
-        storage.setItem('prisme_theme', 'dark');
-    } else {
-        document.documentElement.setAttribute('data-theme', 'light');
-        storage.setItem('prisme_theme', 'light');
-    }
+    const nextTheme = isDark ? 'dark' : 'light';
+    document.documentElement.dataset.theme = nextTheme;
+    storage.setItem('prisme_theme', nextTheme);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -236,22 +232,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnThemeToggle   = document.getElementById('btn-theme-toggle');
     const btnThemeMobile   = document.getElementById('btn-theme-toggle-mobile');
     const btnLogoutMobile  = document.getElementById('btn-logout-mobile');
-    let isDark = storage.getItem('prisme_theme') !== 'light';
+    let isDark = document.documentElement.dataset.theme !== 'light';
     let isLoginMode = true;
+    let messagesSocket = null;
 
     // ── Theme handler (shared) ──────────────────────────────
     function handleThemeToggle() {
-        isDark = !isDark;
+        isDark = document.documentElement.dataset.theme === 'light';
         applyTheme(isDark);
         updateThemeButtons();
     }
 
     function updateThemeButtons() {
+        isDark = document.documentElement.dataset.theme !== 'light';
         const iconClass = isDark ? 'ph ph-sun' : 'ph ph-moon';
         [btnThemeToggle, btnThemeMobile].forEach((button) => {
             const icon = button?.querySelector('i');
             if (icon) icon.className = iconClass;
-            if (button) button.setAttribute('aria-label', isDark ? 'Passer au thème clair' : 'Passer au thème sombre');
+            if (button) {
+                button.setAttribute('aria-label', isDark ? 'Passer au theme clair' : 'Passer au theme sombre');
+                button.title = isDark ? 'Passer au theme clair' : 'Passer au theme sombre';
+            }
         });
     }
     if (btnThemeToggle)  btnThemeToggle.addEventListener('click', handleThemeToggle);
@@ -313,6 +314,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function doLogout() {
+        if (messagesSocket) {
+            messagesSocket.disconnect();
+            messagesSocket = null;
+        }
         clearSession();
         updateAuthUI();
         window.location.href = 'index.html';
@@ -883,14 +888,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const forgotLink = document.getElementById('auth-forgot-pw');
         const verificationMsg = document.getElementById('auth-verification-msg');
         const submitButton = document.getElementById('btn-auth-submit');
+        const phoneSection = document.getElementById('auth-phone-section');
 
-        if (authModeText) authModeText.textContent = isLoginMode ? "Bon retour" : "Créer un compte";
-        if (authToggle) authToggle.textContent = isLoginMode ? "Créer un nouveau compte" : "J'ai déjà un compte";
-        if (submitButton) submitButton.textContent = isLoginMode ? "Se connecter" : "Créer le compte";
+        if (authModeText) authModeText.textContent = isLoginMode ? "Connexion" : "Inscription";
+        if (authToggle) authToggle.textContent = isLoginMode ? "Pas encore de compte ? S'inscrire" : "Deja un compte ? Se connecter";
+        if (submitButton) submitButton.textContent = isLoginMode ? "Se connecter" : "S'inscrire";
         if (nameGroup) nameGroup.style.display = isLoginMode ? 'none' : 'block';
         if (handleGroup) handleGroup.style.display = isLoginMode ? 'none' : 'block';
         if (termsGroup) termsGroup.style.display = isLoginMode ? 'none' : 'block';
         if (forgotLink) forgotLink.style.display = isLoginMode ? 'block' : 'none';
+        if (phoneSection) phoneSection.style.display = isLoginMode ? 'block' : 'none';
         if (verificationMsg) verificationMsg.style.display = 'none';
     }
 
@@ -925,6 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     syncAuthMode();
     ensurePhoneAuthUI();
+    syncAuthMode();
     setupFirebaseAuthButtons();
 
     const forgotLink = document.getElementById('auth-forgot-pw');
@@ -1603,20 +1611,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Initialize UI with sidebar and chat area
         container.innerHTML = `
-            <div class="messages-inner" style="display:flex; height:calc(100dvh - 73px); width:100%;">
-                <div class="messages-sidebar-col" style="width:280px; border-right:1px solid var(--border-color); display:flex; flex-direction:column; flex-shrink:0;">
-                    <div style="padding:16px; border-bottom:1px solid var(--border-color);">
-                        <h2 style="font-size:18px; margin-bottom:12px;">Messages</h2>
-                        <div class="search-bar" style="width:100%;"><i class="ph ph-magnifying-glass"></i><input type="text" id="chat-search" placeholder="Rechercher une personne..." style="width:100%;"></div>
+            <div class="messages-inner">
+                <div class="messages-sidebar-col">
+                    <div class="messages-sidebar-head">
+                        <h2>Messages</h2>
+                        <div class="search-bar message-search"><i class="ph ph-magnifying-glass"></i><input type="text" id="chat-search" placeholder="Rechercher une personne..."></div>
                     </div>
-                    <div id="conv-list" style="overflow-y:auto; flex:1; padding:12px;">
+                    <div id="conv-list">
                         ${emptyState('ph ph-circle-notch', 'Chargement', 'On recupere vos conversations.')}
                     </div>
                 </div>
-                <div id="chat-area" style="flex:1; display:flex; flex-direction:column; background:var(--bg-color); min-height:0;">
-                    <div style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-secondary); padding:24px; text-align:center;">
+                <div id="chat-area">
+                    <div class="chat-empty">
                         <div>
-                            <i class="ph ph-chat-circle-dots" style="font-size:48px; opacity:0.3; display:block; margin-bottom:12px;"></i>
+                            <i class="ph ph-chat-circle-dots"></i>
                             Selectionnez une personne pour commencer
                         </div>
                     </div>
@@ -1630,11 +1638,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let activeReceiverHandle = null;
         let activeReceiverId = null;
+        if (messagesSocket) {
+            messagesSocket.disconnect();
+            messagesSocket = null;
+        }
         let socket = null;
 
         // Connect Socket.io
         if (typeof io !== 'undefined') {
             socket = io(BACKEND_ORIGIN, { auth: { token: state.token } });
+            messagesSocket = socket;
             socket.on('connect', () => {
                 socket.emit('register', state.user.id);
             });
@@ -1663,20 +1676,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: authHeaders()
                 });
                 const data = await res.json();
+                const conversations = Array.isArray(data) ? data : [];
                 convList.innerHTML = '';
-                if (data.length === 0) {
+                if (conversations.length === 0) {
                     convList.innerHTML = emptyState('ph ph-chat-circle-text', 'Aucune conversation', 'Cherchez un @handle pour commencer.');
                 } else {
-                    data.forEach(u => {
+                    conversations.forEach(u => {
                         const div = document.createElement('div');
                         div.className = `msg-conv ${u.handle === activeReceiverHandle ? 'active-conv' : ''}`;
-                        div.style.cssText = `display:flex;align-items:center;gap:12px;padding:16px;cursor:pointer;border-bottom:1px solid var(--border-color); ${u.handle === activeReceiverHandle ? 'background:var(--hover-bg);' : ''}`;
                         div.innerHTML = `
                             ${avatarMarkup(u, 'flex-shrink:0')}
-                            <div style="overflow:hidden;">
-                                <p style="font-weight:600;">${escapeHtml(u.name)}</p>
-                                <p style="font-size:13px;color:var(--text-secondary);">@${escapeHtml(u.handle)}</p>
-                                <p style="font-size:12px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(u.last_message || '')}</p>
+                            <div class="msg-conv-text">
+                                <p class="msg-conv-name">${escapeHtml(u.name)}</p>
+                                <p class="msg-conv-handle">@${escapeHtml(u.handle)}</p>
+                                <p class="msg-conv-last">${escapeHtml(u.last_message || '')}</p>
                             </div>
                         `;
                         div.onclick = () => openChat(u);
@@ -1700,19 +1713,19 @@ document.addEventListener('DOMContentLoaded', () => {
             loadConversations(); // refresh active state
             
             chatArea.innerHTML = `
-                <div style="padding:16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:12px; backdrop-filter:blur(10px);">
+                <div class="chat-header">
                     ${avatarMarkup(selectedUser, 'width:40px;height:40px;background-size:cover;border-radius:50%;')}
                     <div>
-                        <p style="font-weight:600;">${escapeHtml(name || handle)}</p>
-                        <p style="font-size:12px; color:var(--text-secondary);">@${escapeHtml(handle)}</p>
+                        <p class="chat-title">${escapeHtml(name || handle)}</p>
+                        <p class="chat-handle">@${escapeHtml(handle)}</p>
                     </div>
                 </div>
-                <div id="chat-messages" style="flex:1;padding:16px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;">
+                <div id="chat-messages">
                     ${emptyState('ph ph-circle-notch', 'Chargement', 'On recupere les messages.')}
                 </div>
-                <div style="padding:16px;border-top:1px solid var(--border-color);display:flex;gap:12px;align-items:center;">
+                <div class="chat-composer">
                     <input type="text" id="chat-input" placeholder="Écrire un message..." class="input-field" style="flex:1;">
-                    <button id="chat-send" class="btn-primary" style="padding:10px 16px;"><i class="ph-fill ph-paper-plane-right"></i></button>
+                    <button id="chat-send" class="btn-primary"><i class="ph-fill ph-paper-plane-right"></i></button>
                 </div>
             `;
 
@@ -1747,13 +1760,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const container = document.getElementById('chat-messages');
             if(!container) return;
             // Remove "Dites bonjour" if present
-            if(container.innerHTML.includes('Dites bonjour')) container.innerHTML = '';
+            const empty = container.querySelector('.empty-state');
+            if (empty) container.innerHTML = '';
             
             const div = document.createElement('div');
-            div.style.cssText = isFromMe 
-                ? 'align-self:flex-end;max-width:70%;background:var(--accent-color);color:#000;padding:12px 16px;border-radius:16px 16px 4px 16px;'
-                : 'align-self:flex-start;max-width:70%;background:var(--panel-bg);border:1px solid var(--border-color);padding:12px 16px;border-radius:16px 16px 16px 4px; color:var(--text-primary);';
-            div.innerHTML = `<p style="font-size:14px; margin:0;">${escapeHtml(msg.content)}</p>`;
+            div.className = `message-bubble ${isFromMe ? 'from-me' : 'from-them'}`;
+            div.innerHTML = `<p>${escapeHtml(msg.content)}</p>`;
             container.appendChild(div);
         }
 
@@ -1765,7 +1777,10 @@ document.addEventListener('DOMContentLoaded', () => {
         function sendMessage() {
             const input = document.getElementById('chat-input');
             const content = input.value.trim();
-            if (!content || !activeReceiverHandle || !socket) return;
+            if (!content || !activeReceiverHandle || !socket || !socket.connected) {
+                if (content && socket && !socket.connected) alert("Connexion au chat en cours, reessayez dans un instant.");
+                return;
+            }
 
             socket.emit('send_message', {
                 senderId: state.user.id,
@@ -1780,7 +1795,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function renderPeopleSuggestions(users, title = 'Suggestions') {
             if (!Array.isArray(users) || users.length === 0) {
                 convList.innerHTML = emptyState('ph ph-user-focus', 'Aucune personne', 'Essayez un nom ou un @pseudo.');
-                
+                return;
             }
 
             convList.innerHTML = `
@@ -1838,4 +1853,3 @@ document.addEventListener('DOMContentLoaded', () => {
         loadConversations();
     }
 });
-
