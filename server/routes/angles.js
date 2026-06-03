@@ -29,13 +29,9 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-router.get("/", async (req, res) => {
+router.get("/", authenticateToken, async (req, res) => {
   try {
-    let userId = null;
-    const token = req.headers["authorization"]?.split(" ")[1];
-    if (token) {
-      try { userId = jwt.verify(token, JWT_SECRET).id; } catch (e) {}
-    }
+    const userId = req.user.id;
 
     const result = await client.execute(`
       SELECT a.id, a.content, a.media_url, a.created_at, u.name as author, u.handle as author_handle, u.avatar_url, p.name as prisme,
@@ -119,7 +115,7 @@ router.put("/:id", authenticateToken, async (req, res) => {
   }
 });
 
-router.get("/:id/comments", async (req, res) => {
+router.get("/:id/comments", authenticateToken, async (req, res) => {
   try {
     await ensureCommentsSchema();
     const result = await client.execute({

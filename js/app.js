@@ -3,29 +3,51 @@ const BACKEND_ORIGIN = window.location.protocol.startsWith('http') && !STATIC_DE
     ? window.location.origin
     : 'http://localhost:3000';
 const API_URL = `${BACKEND_ORIGIN}/api`;
+const storage = (() => {
+    try {
+        const key = '__prisme_storage_check__';
+        window.localStorage.setItem(key, key);
+        window.localStorage.removeItem(key);
+        return window.localStorage;
+    } catch (error) {
+        return {
+            getItem: () => null,
+            setItem: () => {},
+            removeItem: () => {}
+        };
+    }
+})();
 
 // ── Theme Toggle (persistent) ─────────────────────────────
-const savedTheme = localStorage.getItem('prisme_theme') || 'dark';
+const savedTheme = storage.getItem('prisme_theme') || 'dark';
 if (savedTheme === 'light') document.documentElement.setAttribute('data-theme', 'light');
 
 function applyTheme(isDark) {
     if (isDark) {
         document.documentElement.removeAttribute('data-theme');
-        localStorage.setItem('prisme_theme', 'dark');
+        storage.setItem('prisme_theme', 'dark');
     } else {
         document.documentElement.setAttribute('data-theme', 'light');
-        localStorage.setItem('prisme_theme', 'light');
+        storage.setItem('prisme_theme', 'light');
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    function safeJsonParse(value) {
+        try {
+            return value ? JSON.parse(value) : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
     // State
     const state = {
         posts: [],
         trending: [],
         suggestions: [],
-        user: JSON.parse(localStorage.getItem('prisme_user')) || null,
-        token: localStorage.getItem('prisme_token') || null,
+        user: safeJsonParse(storage.getItem('prisme_user')),
+        token: storage.getItem('prisme_token') || null,
         isAuthenticated: false,
         authStatus: 'checking',
         sidebarStatus: { trending: 'idle', suggestions: 'idle' },
@@ -64,13 +86,60 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function getFirebaseAuthUnavailableMessage(providerName = 'cette connexion') {
+        const allowedProtocol = ['http:', 'https:', 'chrome-extension:'].includes(window.location.protocol);
+        if (!allowedProtocol) {
+            return `${providerName} ne fonctionne pas quand la page est ouverte directement en fichier. Lancez le serveur avec npm start puis ouvrez http://localhost:3000, ou utilisez Live Server en http://localhost:5501.`;
+        }
+        try {
+            const key = '__prisme_firebase_storage_check__';
+            window.localStorage.setItem(key, key);
+            window.localStorage.removeItem(key);
+        } catch (error) {
+            return `${providerName} requiert le stockage navigateur. Activez localStorage/cookies pour ce site, puis rechargez la page.`;
+        }
+
+        if (window.firebaseAuthUnavailableReason) {
+            return `${providerName} est indisponible: ${window.firebaseAuthUnavailableReason}`;
+        }
+
+        if (!window.firebaseAuth || !window.fbAuthMethods) {
+            return `${providerName} est indisponible: Firebase n'est pas encore configure. Rechargez la page apres avoir verifie la connexion internet.`;
+        }
+
+        return null;
+    }
+
+    function isFirebaseAuthEnvironmentSupported() {
+        return !getFirebaseAuthUnavailableMessage();
+    }
+
+    function alertFirebaseAuthUnavailable(providerName) {
+        alert(getFirebaseAuthUnavailableMessage(providerName) || `${providerName} est indisponible pour le moment.`);
+    }
+
+    function setupFirebaseAuthButtons() {
+        const unavailableMessage = getFirebaseAuthUnavailableMessage('La connexion sociale');
+        if (!unavailableMessage) return;
+
+        [
+            document.getElementById('btn-google-login'),
+            document.getElementById('btn-apple-login'),
+            document.getElementById('btn-send-sms')
+        ].forEach((button) => {
+            if (!button) return;
+            button.title = unavailableMessage;
+            button.dataset.unavailableReason = unavailableMessage;
+        });
+    }
+
     function clearSession() {
         state.user = null;
         state.token = null;
         state.isAuthenticated = false;
         state.authStatus = 'anonymous';
-        localStorage.removeItem('prisme_user');
-        localStorage.removeItem('prisme_token');
+        storage.removeItem('prisme_user');
+        storage.removeItem('prisme_token');
     }
 
     function setSession(data) {
@@ -78,8 +147,8 @@ document.addEventListener('DOMContentLoaded', () => {
         state.user = data.user || data;
         state.isAuthenticated = Boolean(state.token && state.user);
         state.authStatus = state.isAuthenticated ? 'authenticated' : 'anonymous';
-        if (state.token) localStorage.setItem('prisme_token', state.token);
-        if (state.user) localStorage.setItem('prisme_user', JSON.stringify(state.user));
+        if (state.token) storage.setItem('prisme_token', state.token);
+        if (state.user) storage.setItem('prisme_user', JSON.stringify(state.user));
     }
 
     function escapeHtml(value) {
@@ -167,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnThemeToggle   = document.getElementById('btn-theme-toggle');
     const btnThemeMobile   = document.getElementById('btn-theme-toggle-mobile');
     const btnLogoutMobile  = document.getElementById('btn-logout-mobile');
-    let isDark = localStorage.getItem('prisme_theme') !== 'light';
+    let isDark = storage.getItem('prisme_theme') !== 'light';
     let isLoginMode = true;
 
     // ── Theme handler (shared) ──────────────────────────────
@@ -355,7 +424,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderSidebar();
         try {
             const [trendRes, suggRes] = await Promise.all([
-                apiFetch(`${API_URL}/trending`),
+                apiFetch(`${API_URL}/trending`, { headers: authHeaders() }),
                 apiFetch(`${API_URL}/suggestions`, { headers: authHeaders() })
             ]);
             state.trending = await trendRes.json();
@@ -541,7 +610,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         list.innerHTML = '<p style="color:var(--text-secondary); font-size:13px;">Chargement des commentaires...</p>';
         try {
-            const res = await apiFetch(`${API_URL}/angles/${id}/comments`);
+            const res = await apiFetch(`${API_URL}/angles/${id}/comments`, { headers: authHeaders() });
             const comments = await res.json();
             if (!Array.isArray(comments) || comments.length === 0) {
                 list.innerHTML = '<p style="color:var(--text-secondary); font-size:13px;">Aucun commentaire pour le moment.</p>';
@@ -856,6 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     syncAuthMode();
     ensurePhoneAuthUI();
+    setupFirebaseAuthButtons();
 
     const forgotLink = document.getElementById('auth-forgot-pw');
     if (forgotLink) {
@@ -864,7 +934,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const email = document.getElementById('auth-email').value.trim();
             if (!email) return alert("Entrez votre email, puis cliquez sur mot de passe oublié.");
             try {
-                const res = await fetch(`${API_URL}/auth/forgot-password`, {
+                const res = await apiFetch(`${API_URL}/auth/forgot-password`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email })
@@ -899,7 +969,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             if (isLoginMode) {
                 // Login API
-                const res = await fetch(`${API_URL}/auth/login`, {
+                const res = await apiFetch(`${API_URL}/auth/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password })
@@ -913,7 +983,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else {
                 // Register API
-                const res = await fetch(`${API_URL}/auth/register`, {
+                const res = await apiFetch(`${API_URL}/auth/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name, handle, email, password, termsAccepted })
@@ -921,8 +991,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await res.json();
 
                 if (res.ok) {
-                    document.getElementById('auth-verification-msg').style.display = 'block';
-                    alert("Compte créé ! Un e-mail de validation vous a été envoyé.");
+                    const verificationMsg = document.getElementById('auth-verification-msg');
+                    if (verificationMsg) {
+                        verificationMsg.textContent = data.message || "Verifiez votre boite mail pour activer votre compte.";
+                        verificationMsg.style.display = 'block';
+                    }
+                    alert(data.message || "Compte cree. Verifiez votre boite mail pour activer votre compte.");
                     authToggle.click(); // Switch back to login
                 } else {
                     alert(data.error || "Erreur d'inscription");
@@ -930,7 +1004,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error(error);
-            alert("Erreur de communication avec le serveur.");
+            alert(error.message || "Erreur de communication avec le serveur.");
         } finally {
             btnSubmit.textContent = originalText;
             btnSubmit.disabled = false;
@@ -938,7 +1012,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     async function completeSocialLogin(provider, firebaseUser) {
-        const res = await fetch(`${API_URL}/auth/social`, {
+        const res = await apiFetch(`${API_URL}/auth/social`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -959,7 +1033,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnGoogleLogin = document.getElementById('btn-google-login');
     if (btnGoogleLogin) {
         btnGoogleLogin.addEventListener('click', async () => {
-            if(!window.firebaseAuth || !window.fbAuthMethods) return alert("Firebase non configuré.");
+            if (!isFirebaseAuthEnvironmentSupported()) {
+                return alertFirebaseAuthUnavailable('Connexion Google');
+            }
             try {
                 const provider = new window.fbAuthMethods.GoogleAuthProvider();
                 const result = await window.fbAuthMethods.signInWithPopup(window.firebaseAuth, provider);
@@ -967,20 +1043,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
                 
                 // Enregistrement auto dans Turso
-                await fetch(`${API_URL}/auth/register`, {
+                await apiFetch(`${API_URL}/auth/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         name: user.displayName, 
                         handle: "google_" + user.uid.slice(0,6), 
                         email: user.email, 
-                        password: 'firebase_managed', 
                         termsAccepted: true 
                     })
                 }).catch(() => {}); // ignore si existe déjà
                 
                 authModal.style.display = 'none';
             } catch(e) {
+                if (e.code === 'auth/operation-not-supported-in-this-environment') {
+                    return alertFirebaseAuthUnavailable('Connexion Google');
+                }
                 alert("Erreur Google: " + e.message);
             }
         });
@@ -989,7 +1067,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnAppleLogin = document.getElementById('btn-apple-login');
     if (btnAppleLogin) {
         btnAppleLogin.addEventListener('click', async () => {
-            if(!window.firebaseAuth || !window.fbAuthMethods) return alert("Firebase non configure.");
+            if (!isFirebaseAuthEnvironmentSupported()) {
+                return alertFirebaseAuthUnavailable('Connexion Apple');
+            }
             try {
                 const provider = new window.fbAuthMethods.OAuthProvider('apple.com');
                 provider.addScope('email');
@@ -997,6 +1077,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const result = await window.fbAuthMethods.signInWithPopup(window.firebaseAuth, provider);
                 await completeSocialLogin('apple', result.user);
             } catch(e) {
+                if (e.code === 'auth/operation-not-supported-in-this-environment') {
+                    return alertFirebaseAuthUnavailable('Connexion Apple');
+                }
                 alert("Erreur Apple: " + e.message);
             }
         });
@@ -1007,7 +1090,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnConfirmSms = document.getElementById('btn-confirm-sms');
     if (btnSendSms) {
         btnSendSms.addEventListener('click', async () => {
-            if(!window.firebaseAuth || !window.fbAuthMethods) return alert("Firebase non configure.");
+            if (!isFirebaseAuthEnvironmentSupported()) {
+                return alertFirebaseAuthUnavailable('Connexion SMS');
+            }
             const phoneNumber = document.getElementById('auth-phone').value.trim();
             if (!phoneNumber.startsWith('+')) {
                 return alert("Entrez le numero au format international, par exemple +2250102030405.");
@@ -1031,6 +1116,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert("Un code SMS a ete envoye au " + phoneNumber);
             } catch(e) {
                 console.error(e);
+                if (e.code === 'auth/operation-not-supported-in-this-environment') {
+                    return alertFirebaseAuthUnavailable('Connexion SMS');
+                }
                 alert("Erreur SMS: " + e.message);
             }
         });
@@ -1116,7 +1204,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!list) return;
         list.innerHTML = emptyState('ph ph-circle-notch', 'Chargement', 'On recupere les sujets du moment.');
         try {
-            const res = await apiFetch(`${API_URL}/trending`);
+            const res = await apiFetch(`${API_URL}/trending`, { headers: authHeaders() });
             const data = await res.json();
             state.trending = data;
             if (data.length === 0) {
@@ -1311,7 +1399,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 // Charger ses angles
-                const anglesRes = await apiFetch(`${API_URL}/users/${user.handle}/angles`);
+                const anglesRes = await apiFetch(`${API_URL}/users/${user.handle}/angles`, { headers: authHeaders() });
                 const angles = await anglesRes.json();
                 const profileFeed = document.getElementById('profile-feed');
                 if (profileFeed) {
@@ -1692,7 +1780,7 @@ document.addEventListener('DOMContentLoaded', () => {
         function renderPeopleSuggestions(users, title = 'Suggestions') {
             if (!Array.isArray(users) || users.length === 0) {
                 convList.innerHTML = emptyState('ph ph-user-focus', 'Aucune personne', 'Essayez un nom ou un @pseudo.');
-                return;
+                
             }
 
             convList.innerHTML = `

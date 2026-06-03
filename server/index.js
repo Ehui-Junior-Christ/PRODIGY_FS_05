@@ -45,6 +45,13 @@ function getUserFromToken(token) {
   }
 }
 
+function requireAuth(req, res, next) {
+  const user = getUserFromToken(getTokenFromRequest(req));
+  if (!user) return res.status(401).json({ error: "Session requise" });
+  req.user = user;
+  next();
+}
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/angles", anglesRoutes);
@@ -58,7 +65,7 @@ app.get(["/", "/index.html", "/trending.html", "/notifications.html", "/profile.
 });
 
 // Trending — calculé depuis la vraie BDD
-app.get("/api/trending", async (req, res) => {
+app.get("/api/trending", requireAuth, async (req, res) => {
   try {
     const result = await client.execute(`
       SELECT p.name as topic, COUNT(a.id) as count
@@ -84,25 +91,9 @@ app.get("/api/trending", async (req, res) => {
 });
 
 // Suggestions — utilisateurs à suivre (excluant l'utilisateur connecté)
-app.get("/api/suggestions", async (req, res) => {
+app.get("/api/suggestions", requireAuth, async (req, res) => {
   try {
-    let userId = null;
-    const user = getUserFromToken(getTokenFromRequest(req));
-    if (user) userId = user.id;
-
-    if (!userId) {
-      const result = await client.execute(`
-        SELECT u.id, u.name, u.handle, u.avatar_url, u.bio,
-          (SELECT COUNT(*) FROM angles WHERE author_id = u.id) as angles_count,
-          (SELECT COUNT(*) FROM follows WHERE following_id = u.id) as followers_count,
-          0 as affinity_score,
-          0 as isFollowing
-        FROM users u
-        ORDER BY followers_count DESC, angles_count DESC, u.created_at DESC
-        LIMIT 5
-      `);
-      return res.json(result.rows);
-    }
+    const userId = req.user.id;
 
     const result = await client.execute({
       sql: `
@@ -135,30 +126,12 @@ app.get("/api/suggestions", async (req, res) => {
   }
 });
 
-app.get("/api/message-suggestions", async (req, res) => {
+app.get("/api/message-suggestions", requireAuth, async (req, res) => {
   try {
-    const user = getUserFromToken(getTokenFromRequest(req));
+    const user = req.user;
     const q = String(req.query.q || "").trim().toLowerCase();
     const searchSql = q ? "AND (lower(u.name) LIKE ? OR lower(u.handle) LIKE ?)" : "";
     const searchArgs = q ? [`%${q}%`, `%${q}%`] : [];
-
-    if (!user) {
-      const result = await client.execute({
-        sql: `
-          SELECT u.id, u.name, u.handle, u.avatar_url, u.bio,
-            (SELECT COUNT(*) FROM follows WHERE following_id = u.id) as followers_count,
-            0 as i_follow,
-            0 as follows_me,
-            0 as affinity_score
-          FROM users u
-          WHERE 1 = 1 ${searchSql}
-          ORDER BY followers_count DESC, u.created_at DESC
-          LIMIT 12
-        `,
-        args: searchArgs
-      });
-      return res.json(result.rows);
-    }
 
     const result = await client.execute({
       sql: `

@@ -70,7 +70,7 @@ router.put("/me", requireAuth, async (req, res) => {
 });
 
 // GET /api/users/search?q=... — recherche de personnes
-router.get("/search", optionalAuth, async (req, res) => {
+router.get("/search", requireAuth, async (req, res) => {
   try {
     const q = String(req.query.q || "").trim().toLowerCase();
     if (q.length < 1) return res.json([]);
@@ -102,7 +102,7 @@ router.get("/search", optionalAuth, async (req, res) => {
 });
 
 // GET /api/users/:handle — profil public d'un utilisateur
-router.get("/:handle", optionalAuth, async (req, res) => {
+router.get("/:handle", requireAuth, async (req, res) => {
   try {
     const result = await client.execute({
       sql: `SELECT u.id, u.name, u.handle, u.avatar_url, u.cover_url, u.bio, u.created_at,
@@ -130,7 +130,7 @@ router.get("/:handle", optionalAuth, async (req, res) => {
 });
 
 // GET /api/users/:handle/angles — angles d'un utilisateur
-router.get("/:handle/angles", async (req, res) => {
+router.get("/:handle/angles", requireAuth, async (req, res) => {
   try {
     const userRes = await client.execute({
       sql: "SELECT id FROM users WHERE handle = ?",

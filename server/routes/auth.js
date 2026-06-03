@@ -1,15 +1,52 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import client from "../db.js";
 import { sendVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail } from "../emailService.js";
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_prisme_key";
-const pendingVerifications = new Map();
+const APP_URL = process.env.APP_URL || "http://localhost:3000";
 
 function generateToken() {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+  return crypto.randomBytes(32).toString("hex");
+}
+
+async function saveAuthToken(token, email, purpose, expiresAt) {
+  await client.execute({
+    sql: "INSERT INTO auth_tokens (token, email, purpose, expires_at) VALUES (?, ?, ?, ?)",
+    args: [token, email, purpose, expiresAt]
+  });
+}
+
+async function consumeAuthToken(token, purpose) {
+  if (!token) return null;
+
+  const result = await client.execute({
+    sql: "SELECT email, expires_at FROM auth_tokens WHERE token = ? AND purpose = ?",
+    args: [token, purpose]
+  });
+
+  if (result.rows.length === 0) return null;
+
+  const data = result.rows[0];
+  if (Date.now() > Number(data.expires_at)) {
+    await client.execute({
+      sql: "DELETE FROM auth_tokens WHERE token = ? AND purpose = ?",
+      args: [token, purpose]
+    });
+    return null;
+  }
+
+  return { email: data.email };
+}
+
+async function deleteAuthToken(token, purpose) {
+  await client.execute({
+    sql: "DELETE FROM auth_tokens WHERE token = ? AND purpose = ?",
+    args: [token, purpose]
+  });
 }
 
 function makeSession(user) {
@@ -88,9 +125,9 @@ router.post("/register", async (req, res) => {
 
     const verificationToken = generateToken();
     const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
-    pendingVerifications.set(verificationToken, { email, expiresAt });
+    await saveAuthToken(verificationToken, email, "verify", expiresAt);
 
-    const verificationLink = `${process.env.APP_URL || "http://localhost:5501"}/verify.html?token=${verificationToken}`;
+    const verificationLink = `${APP_URL}/verify.html?token=${verificationToken}`;
     let verificationSent = true;
     try {
       await sendVerificationEmail(email, name, verificationLink);
@@ -114,9 +151,9 @@ router.post("/register", async (req, res) => {
 
 router.get("/verify", async (req, res) => {
   const { token } = req.query;
-  const data = pendingVerifications.get(token);
+  const data = await consumeAuthToken(token, "verify");
 
-  if (!data || Date.now() > data.expiresAt) {
+  if (!data) {
     return res.status(400).json({ error: "Lien de verification invalide ou expire." });
   }
 
@@ -125,7 +162,7 @@ router.get("/verify", async (req, res) => {
       sql: "UPDATE users SET email_verified = 1 WHERE email = ?",
       args: [data.email]
     });
-    pendingVerifications.delete(token);
+    await deleteAuthToken(token, "verify");
 
     const userRes = await client.execute({
       sql: "SELECT name FROM users WHERE email = ?",
@@ -137,7 +174,37 @@ router.get("/verify", async (req, res) => {
 
     res.json({ message: "Email verifie avec succes !" });
   } catch (e) {
+    console.error("GET /api/auth/verify Error:", e);
     res.status(500).json({ error: "Erreur lors de la verification." });
+  }
+});
+
+router.post("/resend-verification", async (req, res) => {
+  const { email } = req.body;
+  const genericMessage = "Si ce compte existe et n'est pas encore verifie, un nouveau lien a ete envoye.";
+
+  try {
+    const result = await client.execute({
+      sql: "SELECT name, email, email_verified FROM users WHERE email = ?",
+      args: [email]
+    });
+
+    if (result.rows.length === 0 || Number(result.rows[0].email_verified)) {
+      return res.json({ message: genericMessage });
+    }
+
+    const user = result.rows[0];
+    const verificationToken = generateToken();
+    const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+    await saveAuthToken(verificationToken, user.email, "verify", expiresAt);
+
+    const verificationLink = `${APP_URL}/verify.html?token=${verificationToken}`;
+    await sendVerificationEmail(user.email, user.name, verificationLink);
+
+    res.json({ message: genericMessage, verificationSent: true });
+  } catch (error) {
+    console.error("POST /api/auth/resend-verification Error:", error);
+    res.status(500).json({ error: "Impossible d'envoyer le lien de verification pour le moment." });
   }
 });
 
@@ -151,6 +218,24 @@ router.post("/login", async (req, res) => {
     const user = result.rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(400).json({ error: "Mot de passe incorrect" });
+    if (!Number(user.email_verified)) {
+      const verificationToken = generateToken();
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+      await saveAuthToken(verificationToken, user.email, "verify", expiresAt);
+      const verificationLink = `${APP_URL}/verify.html?token=${verificationToken}`;
+
+      try {
+        await sendVerificationEmail(user.email, user.name, verificationLink);
+        return res.status(403).json({
+          error: "Votre e-mail n'est pas encore verifie. Un nouveau lien vient de vous etre envoye."
+        });
+      } catch (emailError) {
+        console.warn("Verification email resend failed:", emailError.message);
+        return res.status(403).json({
+          error: "Votre e-mail n'est pas encore verifie, mais le nouveau lien n'a pas pu etre envoye. Verifiez la configuration SMTP."
+        });
+      }
+    }
 
     res.json(makeSession(user));
   } catch (error) {
@@ -223,9 +308,9 @@ router.post("/forgot-password", async (req, res) => {
 
     const resetToken = generateToken();
     const expiresAt = Date.now() + 60 * 60 * 1000;
-    pendingVerifications.set("reset_" + resetToken, { email, expiresAt });
+    await saveAuthToken(resetToken, email, "reset", expiresAt);
 
-    const resetLink = `${process.env.APP_URL || "http://localhost:5501"}/reset-password.html?token=${resetToken}`;
+    const resetLink = `${APP_URL}/reset-password.html?token=${resetToken}`;
     await sendPasswordResetEmail(email, result.rows[0].name, resetLink);
 
     res.json({ message: "Si cet email existe, un lien a ete envoye." });
@@ -237,9 +322,9 @@ router.post("/forgot-password", async (req, res) => {
 
 router.post("/reset-password", async (req, res) => {
   const { token, newPassword } = req.body;
-  const data = pendingVerifications.get("reset_" + token);
+  const data = await consumeAuthToken(token, "reset");
 
-  if (!data || Date.now() > data.expiresAt) {
+  if (!data) {
     return res.status(400).json({ error: "Lien expire ou invalide." });
   }
 
@@ -249,7 +334,7 @@ router.post("/reset-password", async (req, res) => {
       sql: "UPDATE users SET password_hash = ? WHERE email = ?",
       args: [hashed, data.email]
     });
-    pendingVerifications.delete("reset_" + token);
+    await deleteAuthToken(token, "reset");
     res.json({ message: "Mot de passe reinitialise avec succes." });
   } catch (e) {
     res.status(500).json({ error: "Erreur serveur" });

@@ -39,7 +39,7 @@ npm install
 
 ```env
 PORT=3000
-APP_URL=http://localhost:5501
+APP_URL=http://localhost:3000
 JWT_SECRET=une_cle_secrete
 TURSO_DATABASE_URL=votre_url_turso
 TURSO_AUTH_TOKEN=votre_token_turso

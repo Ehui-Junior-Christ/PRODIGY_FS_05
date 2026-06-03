@@ -100,7 +100,13 @@
         <div id="view-notifications" class="view" style="display:none;">
             <div class="feed" id="notifications-container" style="padding: 24px; display:flex; flex-direction:column; gap:16px;">
                 <!-- Rempli dynamiquement -->
-                <p style="text-align:center; color:var(--text-secondary); padding:24px;">Chargement des notifications...</p>
+                <div class="empty-state">
+                    <div>
+                        <i class="ph ph-bell-ringing"></i>
+                        <strong>Notifications</strong>
+                        <p>Vos notifications apparaitront ici.</p>
+                    </div>
+                </div>
             </div>
         </div>
 
